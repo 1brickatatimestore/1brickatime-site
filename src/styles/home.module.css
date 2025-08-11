@@ -1,0 +1,152 @@
+/* Wrapper sets theme tokens locally (CSS Modules safe) */
+.page {
+  --cream: #e9e3db;       /* background like your card */
+  --blue: #1f5376;        /* header/footer blue */
+  --stud-red: #b71c1c;    /* stud column red */
+  --stud-red-dark: #8a1212;
+
+  /* Proportions tuned per your feedback */
+  --stud-size: 9px;       /* dimple size (smaller = subtler) */
+  --stud-gap: 9px;        /* spacing between dimples */
+  --stud-col-w: 34px;     /* left red bar thinner */
+  --header-h: 52px;       /* thin header */
+  --footer-h: 34px;       /* thin footer */
+  --radius: 10px;
+
+  min-height: 100vh;
+  background: var(--cream);
+  display: flex;                /* left column + right content */
+}
+
+/* Full-height red stud column */
+.studCol {
+  width: var(--stud-col-w);
+  background-color: var(--stud-red);
+  border-right: 3px solid var(--stud-red-dark);
+
+  /* Tiled “studs” */
+  background-image:
+    radial-gradient(circle at calc(var(--stud-size)/2) calc(var(--stud-size)/2),
+      rgba(255,255,255,0.45) 0%,
+      rgba(255,255,255,0.10) 55%,
+      rgba(0,0,0,0.18) 56%,
+      rgba(0,0,0,0.10) 65%,
+      transparent 66%),
+    radial-gradient(circle at calc(var(--stud-size)/2 + 1px) calc(var(--stud-size)/2 + 1px),
+      rgba(0,0,0,0.25) 0%,
+      rgba(0,0,0,0) 58%);
+  background-size: calc(var(--stud-size) + var(--stud-gap)) calc(var(--stud-size) + var(--stud-gap));
+  background-repeat: repeat;
+}
+
+/* Right column stacks header / main / footer */
+.right {
+  flex: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER (blue, flush edges) */
+.header {
+  height: var(--header-h);
+  background: var(--blue);
+  color: #fff;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brandName {
+  font-weight: 800;
+  letter-spacing: .2px;
+  white-space: nowrap;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.nav a {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.nav a:hover { background: rgba(255,255,255,.12); }
+
+/* MAIN */
+.main {
+  flex: 1;                 /* pushes footer to bottom */
+  padding: 28px 20px 24px;
+}
+
+.heroTitle {
+  font-size: 40px;
+  margin: 0 0 6px 0;
+  line-height: 1.05;
+  color: #111;             /* “handwriting” looks better darker */
+}
+
+.heroCopy {
+  margin: 0 0 18px 0;
+  color: #333;
+  max-width: 64ch;
+}
+
+.ctaRow { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.cta,
+.ctaSecondary {
+  display: inline-block;
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 2px solid var(--blue);
+}
+.cta { background: var(--blue); color: #fff; }
+.cta:hover { opacity: 0.92; }
+.ctaSecondary { color: var(--blue); background: transparent; }
+.ctaSecondary:hover { background: rgba(31,83,118,0.08); }
+
+/* FOOTER (blue, thin, flush) */
+.footer {
+  height: var(--footer-h);
+  background: var(--blue);
+  color: #fff;
+  display: flex;
+  align-items: center;
+}
+
+.footerInner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.footerCopy {
+  font-size: 18px; /* script reads a bit larger */
+  letter-spacing: .2px;
+}
+
+.footerRight { display: flex; align-items: center; gap: 10px; }
+.sunflower { display: block; }
+
+/* Small screens */
+@media (max-width: 640px) {
+  .brandName { display: none; } /* keep header compact */
+  .heroTitle { font-size: 34px; }
+  .footerCopy { font-size: 16px; }
+}

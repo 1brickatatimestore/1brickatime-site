@@ -1,0 +1,167 @@
+/* Layout variables */
+:root {
+  --railW: 112px;      /* width of your stud-rail.png on screen */
+  --footerH: 72px;     /* thin footer */
+  --blue: #1f5376;     /* match your card’s blue */
+  --cream: #e9e3db;    /* card background */
+  --red: #bd2430;      /* rail edge accent if needed */
+}
+
+.page {
+  min-height: 100svh;
+  background: var(--cream);
+  overflow-x: hidden;
+}
+
+/* --- Stud rail (fixed, single) --- */
+.rail {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--railW);
+  z-index: 2;
+}
+.railImg {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* --- Header --- */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-left: var(--railW);
+  background: var(--blue);
+  color: #f4d35e;
+  box-shadow: 0 1px 0 rgba(0,0,0,.12);
+}
+.nav {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+.brandMark {
+  display: inline-flex;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.4);
+}
+.links a {
+  color: #fff;
+  margin-left: 18px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.links a:hover { text-decoration: underline; }
+
+/* --- Main content --- */
+.content {
+  margin-left: var(--railW);
+  padding: 24px 16px 96px; /* bottom space so footer never overlaps */
+  max-width: 1100px;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 28px;
+  align-items: center;
+}
+
+.logoWrap { display: flex; }
+.logoPad {
+  background: rgba(255,255,255,.35);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,.06) inset;
+}
+
+.title {
+  font-size: 40px;
+  line-height: 1.1;
+  margin: 0 0 8px;
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+.scriptRed {
+  font-family: 'Sacramento', cursive;
+  color: #c5413a;
+  font-size: 44px;
+}
+
+.tagline {
+  margin: 8px 0 14px;
+  color: #333;
+}
+
+.ctaRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btnPrimary {
+  background: #ffc233;
+  color: #000;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 2px 0 #b88c16;
+}
+.btnPrimary:hover { filter: brightness(0.97); }
+
+.btnGhost {
+  border: 2px solid #2c6c8f;
+  color: #2c6c8f;
+  border-radius: 8px;
+  padding: 8px 14px;
+  text-decoration: none;
+  font-weight: 700;
+}
+.btnGhost:hover { background: rgba(44,108,143,.06); }
+
+/* Handwriting section */
+.note {
+  margin-top: 36px;
+}
+.scriptBody {
+  font-family: 'Sacramento', cursive;
+  font-size: 30px;
+  line-height: 1.35;
+  color: #111;
+  max-width: 900px;
+  margin: 8px 0 0;
+}
+
+/* --- Footer banner (thin, full-bleed) --- */
+.footer {
+  margin-left: var(--railW);
+  height: var(--footerH);
+  background: var(--blue);
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.footerImgWrap {
+  position: relative;
+  width: min(920px, 95%);
+  height: calc(var(--footerH) - 10px);
+}

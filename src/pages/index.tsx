@@ -1,115 +1,142 @@
-import Image from "next/image";
-import { Geist, Geist_Mono } from "next/font/google";
+import Head from 'next/head'
+import Image from 'next/image'
+import Link from 'next/link'
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export default function Home() {
+export default function HomePage() {
   return (
-    <div
-      className={`${geistSans.className} ${geistMono.className} font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20`}
-    >
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/pages/index.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+    <>
+      <Head>
+        <title>1 Brick at a Time — Home</title>
+      </Head>
+
+      <main className="home">
+        {/* HERO */}
+        <section className="hero">
+          <div className="logoWrap">
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+              src="/logo.png"
+              alt="1 Brick at a Time — logo"
+              width={220}
+              height={220}
+              priority
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+          </div>
+
+          <div className="copy">
+            <h1>
+              1 Brick at a <em>time.</em>
+            </h1>
+
+            <p className="sub">
+              Owned by K &amp; K Enterprises — Director: Kamila McT. Building
+              connections — human and LEGO ones — since 2023.
+            </p>
+
+            <div className="ctaRow">
+              <Link href="/minifigs?type=MINIFIG&limit=36" legacyBehavior>
+                <a className="btnPrimary">Shop Now</a>
+              </Link>
+              <Link href="/minifigs?limit=36" legacyBehavior>
+                <a className="btnGhost">See All Items</a>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* HANDWRITTEN NOTE */}
+        <section className="note">
+          <h2 className="gday">G’day,</h2>
+          <p className="hand">
+            we strive for 100% customer satisfaction, so please let us know if
+            there’s anything else we can do for you.
+          </p>
+        </section>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+
+      <style jsx>{`
+        .home {
+          max-width: 980px;
+          margin: 0 auto;
+          padding: 24px;
+        }
+        .hero {
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 24px;
+          align-items: center;
+          margin-top: 8px;
+        }
+        .logoWrap {
+          width: 260px;
+          height: 260px;
+          display: grid;
+          place-items: center;
+          background: rgba(255, 255, 255, 0.09);
+          border-radius: 14px;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        }
+        h1 {
+          margin: 0 0 8px;
+          font-size: 48px;
+          line-height: 1.1;
+          font-weight: 800;
+          color: #2b2b2b;
+        }
+        h1 em {
+          color: #b5463b;
+          font-style: normal;
+          font-family: 'Satisfy', cursive; /* handwriting accent */
+        }
+        .sub {
+          margin: 0 0 14px;
+          max-width: 640px;
+          color: #2f2f2f;
+          font-size: 15px;
+        }
+        .ctaRow { display: flex; gap: 12px; }
+        .btnPrimary {
+          background: #e1b946;
+          border: 2px solid #a2801a;
+          padding: 10px 16px;
+          border-radius: 8px;
+          font-weight: 700;
+          color: #1a1a1a;
+        }
+        .btnGhost {
+          background: transparent;
+          border: 2px solid #204d69;
+          padding: 10px 16px;
+          border-radius: 8px;
+          color: #204d69;
+          font-weight: 600;
+        }
+
+        .note { margin-top: 36px; }
+        .gday {
+          margin: 0 0 8px;
+          font-size: 64px;
+          line-height: 1;
+          color: #b5463b;
+          font-family: 'Satisfy', cursive;  /* handwriting */
+          font-weight: 400;
+        }
+        .hand {
+          margin: 0;
+          max-width: 900px;
+          font-size: 28px;
+          line-height: 1.35;
+          font-family: 'Satisfy', cursive;  /* handwriting */
+          color: #1f1f1f;
+        }
+
+        @media (max-width: 920px) {
+          .hero { grid-template-columns: 1fr; }
+          .logoWrap { width: 200px; height: 200px; margin: 0 auto; }
+          h1 { font-size: 40px; }
+          .gday { font-size: 52px; }
+          .hand { font-size: 24px; }
+        }
+      `}</style>
+    </>
+  )
 }

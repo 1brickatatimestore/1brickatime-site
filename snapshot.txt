@@ -1,0 +1,792 @@
+=== PUBLIC ASSETS ===
+total 10200
+-rw-r--r--  1 info  staff    25K  6 Aug 12:56 favicon.ico
+-rw-r--r--  1 info  staff   391B  6 Aug 12:56 file.svg
+-rw-r--r--@ 1 info  staff   362K  5 Aug 17:43 footer-banner.png
+-rw-r--r--  1 info  staff   1.0K  6 Aug 12:56 globe.svg
+-rw-r--r--@ 1 info  staff   4.5M 12 Jul 16:43 logo.png
+-rw-r--r--  1 info  staff   1.3K  6 Aug 12:56 next.svg
+-rw-r--r--@ 1 info  staff    58K  5 Aug 16:08 stud-rail.png
+-rw-r--r--  1 info  staff   128B  6 Aug 12:56 vercel.svg
+-rw-r--r--  1 info  staff   385B  6 Aug 12:56 window.svg
+
+=== SRC TREE (ls -R) ===
+  components
+  lib
+  models
+  pages
+  styles
+  
+  src/components:
+  Header.tsx
+  Layout.tsx
+  SiteLayout.module.css
+  SiteLayout.tsx
+  
+  src/lib:
+  db.ts
+  oauth.ts
+  
+  src/models:
+  Product.ts
+  
+  src/pages:
+  _app.tsx
+  _document.tsx
+  api
+  index.module.css
+  index.tsx
+  minifigs.tsx
+  
+  src/pages/api:
+  debug-env.ts
+  debug-sync.ts
+  dev
+  hello.ts
+  minifigs.ts
+  ping.ts
+  products.ts
+  sync-bricklink.ts
+  test-db.ts
+  test-env.ts
+  
+  src/pages/api/dev:
+  backfill-minifig-images.ts
+  ensure-indexes.ts
+  purge-incomplete.ts
+  repair-products.ts
+  
+  src/styles:
+  globals.css
+  home.module.css
+
+=== src/pages/_app.tsx ===
+     1	import type { AppProps } from 'next/app'
+     2	import SiteLayout from '@/components/SiteLayout'
+     3	import '@/styles/globals.css'
+     4	
+     5	export default function MyApp({ Component, pageProps }: AppProps) {
+     6	  return (
+     7	    <SiteLayout>
+     8	      <Component {...pageProps} />
+     9	    </SiteLayout>
+    10	  )
+    11	}
+=== src/pages/index.tsx ===
+     1	import Head from 'next/head'
+     2	import Image from 'next/image'
+     3	import Link from 'next/link'
+     4	
+     5	export default function HomePage() {
+     6	  return (
+     7	    <>
+     8	      <Head>
+     9	        <title>1 Brick at a Time — Home</title>
+    10	      </Head>
+    11	
+    12	      <main className="home">
+    13	        {/* HERO */}
+    14	        <section className="hero">
+    15	          <div className="logoWrap">
+    16	            <Image
+    17	              src="/logo.png"
+    18	              alt="1 Brick at a Time — logo"
+    19	              width={220}
+    20	              height={220}
+    21	              priority
+    22	            />
+    23	          </div>
+    24	
+    25	          <div className="copy">
+    26	            <h1>
+    27	              1 Brick at a <em>time.</em>
+    28	            </h1>
+    29	
+    30	            <p className="sub">
+    31	              Owned by K &amp; K Enterprises — Director: Kamila McT. Building
+    32	              connections — human and LEGO ones — since 2023.
+    33	            </p>
+    34	
+    35	            <div className="ctaRow">
+    36	              <Link href="/minifigs?type=MINIFIG&limit=36" legacyBehavior>
+    37	                <a className="btnPrimary">Shop Now</a>
+    38	              </Link>
+    39	              <Link href="/minifigs?limit=36" legacyBehavior>
+    40	                <a className="btnGhost">See All Items</a>
+    41	              </Link>
+    42	            </div>
+    43	          </div>
+    44	        </section>
+    45	
+    46	        {/* HANDWRITTEN NOTE */}
+    47	        <section className="note">
+    48	          <h2 className="gday">G’day,</h2>
+    49	          <p className="hand">
+    50	            we strive for 100% customer satisfaction, so please let us know if
+    51	            there’s anything else we can do for you.
+    52	          </p>
+    53	        </section>
+    54	      </main>
+    55	
+    56	      <style jsx>{`
+    57	        .home {
+    58	          max-width: 980px;
+    59	          margin: 0 auto;
+    60	          padding: 24px;
+    61	        }
+    62	        .hero {
+    63	          display: grid;
+    64	          grid-template-columns: 260px 1fr;
+    65	          gap: 24px;
+    66	          align-items: center;
+    67	          margin-top: 8px;
+    68	        }
+    69	        .logoWrap {
+    70	          width: 260px;
+    71	          height: 260px;
+    72	          display: grid;
+    73	          place-items: center;
+    74	          background: rgba(255, 255, 255, 0.09);
+    75	          border-radius: 14px;
+    76	          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    77	        }
+    78	        h1 {
+    79	          margin: 0 0 8px;
+    80	          font-size: 48px;
+    81	          line-height: 1.1;
+    82	          font-weight: 800;
+    83	          color: #2b2b2b;
+    84	        }
+    85	        h1 em {
+    86	          color: #b5463b;
+    87	          font-style: normal;
+    88	          font-family: 'Satisfy', cursive; /* handwriting accent */
+    89	        }
+    90	        .sub {
+    91	          margin: 0 0 14px;
+    92	          max-width: 640px;
+    93	          color: #2f2f2f;
+    94	          font-size: 15px;
+    95	        }
+    96	        .ctaRow { display: flex; gap: 12px; }
+    97	        .btnPrimary {
+    98	          background: #e1b946;
+    99	          border: 2px solid #a2801a;
+   100	          padding: 10px 16px;
+   101	          border-radius: 8px;
+   102	          font-weight: 700;
+   103	          color: #1a1a1a;
+   104	        }
+   105	        .btnGhost {
+   106	          background: transparent;
+   107	          border: 2px solid #204d69;
+   108	          padding: 10px 16px;
+   109	          border-radius: 8px;
+   110	          color: #204d69;
+   111	          font-weight: 600;
+   112	        }
+   113	
+   114	        .note { margin-top: 36px; }
+   115	        .gday {
+   116	          margin: 0 0 8px;
+   117	          font-size: 64px;
+   118	          line-height: 1;
+   119	          color: #b5463b;
+   120	          font-family: 'Satisfy', cursive;  /* handwriting */
+   121	          font-weight: 400;
+   122	        }
+   123	        .hand {
+   124	          margin: 0;
+   125	          max-width: 900px;
+   126	          font-size: 28px;
+   127	          line-height: 1.35;
+   128	          font-family: 'Satisfy', cursive;  /* handwriting */
+   129	          color: #1f1f1f;
+   130	        }
+   131	
+   132	        @media (max-width: 920px) {
+   133	          .hero { grid-template-columns: 1fr; }
+   134	          .logoWrap { width: 200px; height: 200px; margin: 0 auto; }
+   135	          h1 { font-size: 40px; }
+   136	          .gday { font-size: 52px; }
+   137	          .hand { font-size: 24px; }
+   138	        }
+   139	      `}</style>
+   140	    </>
+   141	  )
+   142	}
+=== src/styles/globals.css ===
+     1	* { box-sizing: border-box; }
+     2	html, body, #__next { height: 100%; }
+     3	body {
+     4	  margin: 0;
+     5	  background: #e9e3db; /* cream */
+     6	  color: #1e1e1e;
+     7	  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+     8	}
+     9	a { text-decoration: none; }
+=== src/components/SiteLayout.tsx ===
+     1	import s from './SiteLayout.module.css'
+     2	import Image from 'next/image'
+     3	import Link from 'next/link'
+     4	import type { ReactNode } from 'react'
+     5	
+     6	type Props = { children: ReactNode }
+     7	
+     8	export default function SiteLayout({ children }: Props) {
+     9	  return (
+    10	    <div className={s.shell}>
+    11	      {/* Left stud rail: ONE image, no repeats */}
+    12	      <div className={s.rail}>
+    13	        <Image
+    14	          src="/stud-rail.png"
+    15	          alt=""
+    16	          fill
+    17	          priority
+    18	          className={s.railImg}
+    19	        />
+    20	      </div>
+    21	
+    22	      <header className={s.header}>
+    23	        <nav className={s.nav}>
+    24	          <div className={s.brand}>
+    25	            <Image src="/logo.png" alt="" width={28} height={28} />
+    26	            <span>1 Brick at a Time</span>
+    27	          </div>
+    28	          <div className={s.links}>
+    29	            <Link href="/">Home</Link>
+    30	            <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
+    31	          </div>
+    32	        </nav>
+    33	      </header>
+    34	
+    35	      <main className={s.main}>{children}</main>
+    36	
+    37	      <footer className={s.footer}>
+    38	        <Image
+    39	          src="/footer-banner.png"
+    40	          alt="Build alongside us!"
+    41	          className={s.footerImg}
+    42	          width={2400}
+    43	          height={180}
+    44	          priority
+    45	        />
+    46	      </footer>
+    47	    </div>
+    48	  )
+    49	}
+=== src/components/SiteLayout.module.css ===
+     1	/* Page shell */
+     2	.shell {
+     3	  background: #e9e3db;          /* cream */
+     4	  min-height: 100dvh;
+     5	}
+     6	
+     7	/* ===== LEFT STUD RAIL (single non-repeating image) =====
+     8	   Tweak the width if studs still clip: change BOTH 148px values here
+     9	   and in .main margin-left below (keep them in sync). */
+    10	.rail {
+    11	  position: fixed;
+    12	  left: 0;
+    13	  top: 0;
+    14	  bottom: 0;
+    15	  width: 148px;                 /* rail thickness */
+    16	  z-index: 0;                   /* behind header/content/footer */
+    17	}
+    18	.railImg {
+    19	  object-fit: cover;            /* fills the whole column */
+    20	  object-position: left top;    /* keep studs fully visible */
+    21	}
+    22	
+    23	/* Header */
+    24	.header {
+    25	  position: sticky;
+    26	  top: 0;
+    27	  z-index: 3;
+    28	  background: #1f5376;          /* blue */
+    29	  color: #fff;
+    30	  border-bottom: 4px solid rgba(0,0,0,.25);
+    31	}
+    32	.nav {
+    33	  max-width: 1100px;
+    34	  margin: 0 auto;
+    35	  padding: 10px 16px;
+    36	  display: flex;
+    37	  align-items: center;
+    38	  justify-content: space-between;
+    39	  gap: 16px;
+    40	}
+    41	.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    42	.links a { color: #ffd772; margin-left: 18px; }
+    43	
+    44	/* Main content sits to the right of the rail */
+    45	.main {
+    46	  position: relative;
+    47	  z-index: 1;
+    48	  margin-left: calc(148px + 24px); /* rail width + breathing room */
+    49	  padding: 28px 24px 140px;        /* bottom pad so footer never overlaps */
+    50	}
+    51	
+    52	/* Footer (thin banner image) */
+    53	.footer {
+    54	  position: fixed;
+    55	  left: 0;
+    56	  right: 0;
+    57	  bottom: 0;
+    58	  z-index: 2;
+    59	  background: #1f5376;
+    60	  border-top: 4px solid rgba(0,0,0,.25);
+    61	}
+    62	.footerImg {
+    63	  display: block;
+    64	  width: 100%;
+    65	  height: 96px;                  /* thin */
+    66	  object-fit: contain;           /* show whole sunflower/lines */
+    67	  object-position: center;
+    68	  pointer-events: none;
+    69	  user-select: none;
+    70	}
+=== src/components/Header.tsx ===
+     1	import Link from 'next/link'
+     2	import Image from 'next/image'
+     3	import s from './SiteLayout.module.css'
+     4	
+     5	export default function Header() {
+     6	  return (
+     7	    <header className={s.header}>
+     8	      <Link href="/" className={s.brand}>
+     9	        <Image
+    10	          src="/logo.png"
+    11	          alt="1 Brick at a Time"
+    12	          width={28}
+    13	          height={28}
+    14	          priority
+    15	        />
+    16	        <span>1 Brick at a Time</span>
+    17	      </Link>
+    18	
+    19	      <nav className={s.nav}>
+    20	        <Link href="/">Home</Link>
+    21	        <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
+    22	      </nav>
+    23	    </header>
+    24	  )
+    25	}
+=== src/components/Layout.tsx ===
+     1	import { ReactNode } from 'react'
+     2	import SiteLayout from './SiteLayout'
+     3	
+     4	export default function Layout({ children }: { children: ReactNode }) {
+     5	  return <SiteLayout>{children}</SiteLayout>
+     6	}
+=== src/pages/minifigs.tsx ===
+     1	import Head from 'next/head'
+     2	import Link from 'next/link'
+     3	import Image from 'next/image'
+     4	import type { GetServerSideProps } from 'next'
+     5	import { decode } from 'html-entities'
+     6	
+     7	type Item = {
+     8	  inventoryId?: number | null
+     9	  itemNo?: string | null
+    10	  name: string
+    11	  condition?: string | null
+    12	  description?: string | null
+    13	  remarks?: string | null
+    14	  price?: number | null
+    15	  qty?: number | null
+    16	  imageUrl?: string | null
+    17	  type?: string | null
+    18	  categoryId?: number | null
+    19	}
+    20	
+    21	type Props = {
+    22	  items: Item[]
+    23	  count: number
+    24	  page: number
+    25	  limit: number
+    26	  type: string
+    27	}
+    28	
+    29	export const getServerSideProps: GetServerSideProps<Props> = async ctx => {
+    30	  const type  = (ctx.query.type as string) || 'MINIFIG'
+    31	  const page  = Math.max(1, parseInt((ctx.query.page as string) || '1', 10))
+    32	  const limit = Math.min(
+    33	    100,
+    34	    Math.max(1, parseInt((ctx.query.limit as string) || '36', 10))
+    35	  )
+    36	
+    37	  const SITE =
+    38	    process. PAYPAL_CLIENT_SECRET_REDACTED|| 'http://localhost:3000'
+    39	
+    40	  const url = `${SITE}/api/minifigs?type=${encodeURIComponent(
+    41	    type
+    42	  )}&page=${page}&limit=${limit}`
+    43	
+    44	  const res = await fetch(url)
+    45	  const data = await res.json()
+    46	
+    47	  return {
+    48	    props: {
+    49	      items: Array.isArray(data.inventory) ? data.inventory : [],
+    50	      count: Number(data.count || 0),
+    51	      page,
+    52	      limit,
+    53	      type,
+    54	    },
+    55	  }
+    56	}
+    57	
+    58	export default function MinifigsPage({ items, count, page, limit, type }: Props) {
+    59	  const totalPages = Math.max(1, Math.ceil(count / limit))
+    60	  const prevPage = Math.max(1, page - 1)
+    61	  const nextPage = Math.min(totalPages, page + 1)
+    62	
+    63	  return (
+    64	    <>
+    65	      <Head>
+    66	        <title>{`Inventory: ${type}`}</title>
+    67	        <meta name="description" content="Browse BrickLink inventory" />
+    68	      </Head>
+    69	
+    70	      <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+    71	        {/* Simple nav */}
+    72	        <nav style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+    73	          <Link href="/" legacyBehavior><a>Home</a></Link>
+    74	          <Link href="/minifigs?type=MINIFIG&limit=36" legacyBehavior><a>Minifigs</a></Link>
+    75	          <Link href="/minifigs?limit=36&type=PART" legacyBehavior><a>Parts</a></Link>
+    76	        </nav>
+    77	
+    78	        <h1 style={{ fontSize: 32, margin: '8px 0 4px' }}>
+    79	          {`Inventory: ${type}`}
+    80	        </h1>
+    81	        <div style={{ color: '#555', marginBottom: 16 }}>
+    82	          {`Total ${count} • Page ${page} / ${totalPages} • Showing ${items.length}`}
+    83	        </div>
+    84	
+    85	        {/* Grid */}
+    86	        <div
+    87	          style={{
+    88	            display: 'grid',
+    89	            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+    90	            gap: 16,
+    91	          }}
+    92	        >
+    93	          {items.map((item, idx) => {
+    94	            const key =
+    95	              item.inventoryId ??
+    96	              (item.itemNo ? `${item.itemNo}-${idx}` : `row-${idx}`)
+    97	            const name = decode(item.name || '—')
+    98	            return (
+    99	              <div
+   100	                key={key}
+   101	                style={{
+   102	                  border: '1px solid #e5e5e5',
+   103	                  borderRadius: 8,
+   104	                  padding: 12,
+   105	                  background: '#fff',
+   106	                }}
+   107	              >
+   108	                {/* Image */}
+   109	                <div
+   110	                  style={{
+   111	                    width: '100%',
+   112	                    aspectRatio: '1 / 1',
+   113	                    background: '#f3f3f3',
+   114	                    display: 'flex',
+   115	                    alignItems: 'center',
+   116	                    justifyContent: 'center',
+   117	                    borderRadius: 6,
+   118	                    overflow: 'hidden',
+   119	                    marginBottom: 12,
+   120	                  }}
+   121	                >
+   122	                  {item.imageUrl ? (
+   123	                    <Image
+   124	                      src={item.imageUrl}
+   125	                      alt={name}
+   126	                      width={400}
+   127	                      height={400}
+   128	                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+   129	                    />
+   130	                  ) : (
+   131	                    <span style={{ color: '#888' }}>No Image</span>
+   132	                  )}
+   133	                </div>
+   134	
+   135	                {/* Text */}
+   136	                <div style={{ fontWeight: 700, marginBottom: 6 }}>{name}</div>
+   137	                <div style={{ fontSize: 13, color: '#555' }}>
+   138	                  {item.condition ?? '—'} • Qty: {item.qty ?? 0}
+   139	                </div>
+   140	                <div style={{ fontSize: 13, color: '#555', marginTop: 6 }}>
+   141	                  <strong>Description:</strong>{' '}
+   142	                  {item.description ? decode(item.description) : '—'}
+   143	                </div>
+   144	                <div style={{ fontSize: 13, color: '#555' }}>
+   145	                  <strong>Remarks:</strong> {item.remarks ? decode(item.remarks) : '—'}
+   146	                </div>
+   147	                <div style={{ fontWeight: 700, marginTop: 8 }}>
+   148	                  {item.price != null ? `$${item.price.toFixed(2)}` : '—'}
+   149	                </div>
+   150	              </div>
+   151	            )
+   152	          })}
+   153	        </div>
+   154	
+   155	        {/* Pagination */}
+   156	        <div
+   157	          style={{
+   158	            display: 'flex',
+   159	            gap: 8,
+   160	            alignItems: 'center',
+   161	            justifyContent: 'center',
+   162	            marginTop: 24,
+   163	          }}
+   164	        >
+   165	          <Link
+   166	            href={`/minifigs?type=${encodeURIComponent(
+   167	              type
+   168	            )}&limit=${limit}&page=${prevPage}`}
+   169	            legacyBehavior
+   170	          >
+   171	            <a aria-disabled={page <= 1} style={{ pointerEvents: page <= 1 ? 'none' : 'auto', opacity: page <= 1 ? 0.5 : 1 }}>
+   172	              ← Prev
+   173	            </a>
+   174	          </Link>
+   175	          <span style={{ color: '#666' }}>
+   176	            Page {page} of {totalPages}
+   177	          </span>
+   178	          <Link
+   179	            href={`/minifigs?type=${encodeURIComponent(
+   180	              type
+   181	            )}&limit=${limit}&page=${nextPage}`}
+   182	            legacyBehavior
+   183	          >
+   184	            <a aria-disabled={page >= totalPages} style={{ pointerEvents: page >= totalPages ? 'none' : 'auto', opacity: page >= totalPages ? 0.5 : 1 }}>
+   185	              Next →
+   186	            </a>
+   187	          </Link>
+   188	        </div>
+   189	      </div>
+   190	    </>
+   191	  )
+   192	}
+=== src/pages/api/minifigs.ts ===
+     1	import type { NextApiRequest, NextApiResponse } from 'next'
+     2	import dbConnect from '../../lib/db'
+     3	import Product from '../../models/Product'
+     4	
+     5	export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+     6	  try {
+     7	    await dbConnect(process.env.MONGODB_URI!)
+     8	
+     9	    // ---- query params ----
+    10	    const requestedType = (req.query.type as string) || 'MINIFIG'
+    11	    const showAllTypes  = requestedType.toUpperCase() === 'ALL'
+    12	
+    13	    // page or skip + limit
+    14	    const limitRaw = (req.query.limit as string) || '36'
+    15	    let limit = Number.parseInt(limitRaw, 10)
+    16	    if (Number.isNaN(limit) || limit <= 0) limit = 36
+    17	    if (limit > 100) limit = 100 // cap to keep payloads sane
+    18	
+    19	    const pageRaw = (req.query.page as string) || '1'
+    20	    let page = Number.parseInt(pageRaw, 10)
+    21	    if (Number.isNaN(page) || page <= 0) page = 1
+    22	
+    23	    const skipParam = req.query.skip as string | undefined
+    24	    const skip = skipParam != null ? Math.max(0, Number.parseInt(skipParam, 10)) : (page - 1) * limit
+    25	
+    26	    // hide incomplete rows unless explicitly asked
+    27	    const includeIncomplete = (req.query.includeIncomplete as string)?.toLowerCase() === '1'
+    28	
+    29	    // ---- filter ----
+    30	    const filter: Record<string, any> = {}
+    31	    if (!showAllTypes) {
+    32	      filter.type = requestedType // default is MINIFIG
+    33	    }
+    34	    if (!includeIncomplete) {
+    35	      filter.inventoryId = { $exists: true, $ne: null }
+    36	      filter.name        = { $exists: true, $ne: null }
+    37	      // imageUrl is optional, but you can enforce it by uncommenting:
+    38	      // filter.imageUrl    = { $exists: true, $ne: '' }
+    39	    }
+    40	
+    41	    // ---- query ----
+    42	    const [count, docs] = await Promise.all([
+    43	      Product.countDocuments(filter),
+    44	      Product.find(
+    45	        filter,
+    46	        {
+    47	          // projection keeps payload small
+    48	          inventoryId: 1,
+    49	          type: 1,
+    50	          categoryId: 1,
+    51	          itemNo: 1,
+    52	          name: 1,
+    53	          condition: 1,
+    54	          description: 1,
+    55	          remarks: 1,
+    56	          price: 1,
+    57	          qty: 1,
+    58	          imageUrl: 1,
+    59	          createdAt: 1,
+    60	          updatedAt: 1,
+    61	          _id: 0, // strip Mongo _id so JSON is clean
+    62	        }
+    63	      )
+    64	        .sort({ inventoryId: 1 })
+    65	        .skip(skip)
+    66	        .limit(limit)
+    67	        .lean()
+    68	    ])
+    69	
+    70	    return res.status(200).json({
+    71	      success: true,
+    72	      type: showAllTypes ? 'ALL' : requestedType,
+    73	      count,                 // total matching documents (not just this page)
+    74	      page,
+    75	      limit,
+    76	      skip,
+    77	      inventory: docs,
+    78	    })
+    79	  } catch (err: any) {
+    80	    console.error('minifigs api error:', err)
+    81	    return res.status(500).json({ success: false, error: err?.message || String(err) })
+    82	  }
+    83	}
+=== src/pages/api/sync-bricklink.ts ===
+     1	import type { NextApiRequest, NextApiResponse } from 'next'
+     2	import dbConnect from '../../lib/db'
+     3	import Product from '../../models/Product'
+     4	
+     5	export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+     6	  try {
+     7	    await dbConnect(process.env.MONGODB_URI!)
+     8	
+     9	    const { type, limit: limitRaw, includeIncomplete } = req.query
+    10	    const limit = Math.min(parseInt(String(limitRaw ?? '48'), 10) || 48, 500)
+    11	
+    12	    const showIncomplete = ['1', 'true', 'yes'].includes(String(includeIncomplete).toLowerCase())
+    13	
+    14	    const filter: Record<string, any> = {}
+    15	
+    16	    if (type) {
+    17	      filter.type = String(type).toUpperCase()
+    18	    }
+    19	
+    20	    // 🔒 Ignore incomplete docs by default
+    21	    if (!showIncomplete) {
+    22	      Object.assign(filter, {
+    23	        inventoryId: { $gt: 0 },
+    24	        itemNo: { $exists: true, $ne: null },
+    25	        name: { $exists: true, $ne: null },
+    26	      })
+    27	    }
+    28	
+    29	    const inventory = await Product.find(filter)
+    30	      .sort({ inventoryId: 1, _id: 1 })
+    31	      .limit(limit)
+    32	      .select({
+    33	        _id: 0, // keep JSON clean
+    34	        inventoryId: 1,
+    35	        type: 1,
+    36	        categoryId: 1,
+    37	        itemNo: 1,
+    38	        name: 1,
+    39	        condition: 1,
+    40	        description: 1,
+    41	        remarks: 1,
+    42	        price: 1,
+    43	        qty: 1,
+    44	        imageUrl: 1,
+    45	        createdAt: 1,
+    46	        updatedAt: 1,
+    47	      })
+    48	      .lean()
+    49	
+    50	    return res.status(200).json({ success: true, inventory })
+    51	  } catch (err: any) {
+    52	    console.error('minifigs API error:', err)
+    53	    return res.status(500).json({ success: false, error: err?.message || 'Server error' })
+    54	  }
+    55	}
+=== src/models/Product.ts ===
+     1	import { Schema, model, models, Document } from 'mongoose'
+     2	
+     3	export interface IProduct extends Document {
+     4	  inventoryId: number
+     5	  type?: string | null
+     6	  categoryId?: number | null
+     7	  itemNo?: string | null
+     8	  name?: string | null
+     9	  condition?: string | null // 'N' or 'U'
+    10	  description?: string | null
+    11	  remarks?: string | null
+    12	  price?: number | null
+    13	  qty: number
+    14	  imageUrl?: string | null
+    15	}
+    16	
+    17	const ProductSchema = new Schema<IProduct>(
+    18	  {
+    19	    inventoryId: { type: Number, required: true, unique: true },
+    20	    type:        { type: String },        // no defaults
+    21	    categoryId:  { type: Number },
+    22	    itemNo:      { type: String },
+    23	    name:        { type: String },
+    24	    condition:   { type: String },
+    25	    description: { type: String },
+    26	    remarks:     { type: String },
+    27	    price:       { type: Number },
+    28	    qty:         { type: Number, required: true },
+    29	    imageUrl:    { type: String },
+    30	  },
+    31	  { timestamps: true }
+    32	)
+    33	
+    34	// Prevent model recompilation in Next.js dev
+    35	export default models.Product || model<IProduct>('Product', ProductSchema)
+=== src/lib/db.ts ===
+     1	// src/lib/db.ts
+     2	import mongoose from "mongoose";
+     3	
+     4	declare global {
+     5	  // Allow globalThis.mongooseConnection for caching
+     6	  var mongooseConnection: mongoose.Mongoose | undefined;
+     7	}
+     8	
+     9	const MONGODB_URI = process.env.MONGODB_URI!;
+    10	if (!MONGODB_URI) {
+    11	  throw new Error("Please define the MONGODB_URI environment variable inside .env.local");
+    12	}
+    13	
+    14	export default async function dbConnect(): Promise<mongoose.Mongoose> {
+    15	  // Use the cached connection if it exists
+    16	  if (globalThis.mongooseConnection) {
+    17	    return globalThis.mongooseConnection;
+    18	  }
+    19	  // Otherwise, establish a new connection
+    20	  const connection = await mongoose.connect(MONGODB_URI);
+    21	  globalThis.mongooseConnection = connection;
+    22	  return connection;
+    23	}
+
+=== next.config.js (missing) ===
+
+=== next.config.ts ===
+     1	/** @type {import('next').NextConfig} */
+     2	const nextConfig = {
+     3	  reactStrictMode: true,
+     4	  images: {
+     5	    remotePatterns: [
+     6	      { protocol: 'https', hostname: 'img.bricklink.com' },
+     7	      // add others if you ever need them
+     8	    ],
+     9	    // while stabilizing you can also turn off optimization:
+    10	    // unoptimized: true,
+    11	  },
+    12	}
+    13	
+    14	module.exports = nextConfig
