@@ -1,21 +1,23 @@
 import Head from 'next/head'
-import Link from 'next/link'
 import Image from 'next/image'
+import Link from 'next/link'
 import type { GetServerSideProps } from 'next'
 import { decode } from 'html-entities'
 
 type Item = {
   inventoryId?: number | null
+  type?: string | null
+  categoryId?: number | null
   itemNo?: string | null
-  name: string
+  name?: string | null
   condition?: string | null
   description?: string | null
   remarks?: string | null
   price?: number | null
   qty?: number | null
   imageUrl?: string | null
-  type?: string | null
-  categoryId?: number | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 type Props = {
@@ -26,167 +28,137 @@ type Props = {
   type: string
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async ctx => {
-  const type  = (ctx.query.type as string) || 'MINIFIG'
-  const page  = Math.max(1, parseInt((ctx.query.page as string) || '1', 10))
-  const limit = Math.min(
-    100,
-    Math.max(1, parseInt((ctx.query.limit as string) || '36', 10))
-  )
+export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+  const q = ctx.query
 
-  const SITE =
-    process. PAYPAL_CLIENT_SECRET_REDACTED|| 'http://localhost:3000'
+  const typeParam =
+    typeof q.type === 'string' && q.type.trim() !== '' ? q.type : 'MINIFIG'
 
-  const url = `${SITE}/api/minifigs?type=${encodeURIComponent(
-    type
-  )}&page=${page}&limit=${limit}`
+  const limit = Number.parseInt(String(q.limit ?? '36'), 10) || 36
+  const page  = Math.max(1, Number.parseInt(String(q.page ?? '1'), 10) || 1)
+  const skip  = (page - 1) * limit
 
-  const res = await fetch(url)
-  const data = await res.json()
+  const host = ctx.req.headers.host ?? 'localhost:3000'
+  const isLocal = host.startsWith('localhost') || host.startsWith('192.168.')
+  const proto = isLocal ? 'http' : 'https'
+
+  const url =
+    `${proto}://${host}/api/minifigs` +
+    `?type=${encodeURIComponent(typeParam)}` +
+    `&limit=${limit}` +
+    `&skip=${skip}`
+
+  const res  = await fetch(url)
+  const data = await res.json().catch(() => ({}))
+
+  const items: Item[] = Array.isArray(data?.inventory) ? data.inventory : Array.isArray(data) ? data : []
+  const count: number = Number.isFinite(data?.count) ? data.count : items.length
 
   return {
-    props: {
-      items: Array.isArray(data.inventory) ? data.inventory : [],
-      count: Number(data.count || 0),
-      page,
-      limit,
-      type,
-    },
+    props: { items, count, page, limit, type: typeParam },
   }
 }
 
 export default function MinifigsPage({ items, count, page, limit, type }: Props) {
   const totalPages = Math.max(1, Math.ceil(count / limit))
-  const prevPage = Math.max(1, page - 1)
-  const nextPage = Math.min(totalPages, page + 1)
+  const title = `Inventory — ${type} (${count})`
+
+  const pageHref = (p: number) =>
+    `/minifigs?type=${encodeURIComponent(type)}&limit=${limit}&page=${p}`
 
   return (
     <>
       <Head>
-        <title>{`Inventory: ${type}`}</title>
-        <meta name="description" content="Browse BrickLink inventory" />
+        <title>{title}</title>
       </Head>
 
-      <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
-        {/* Simple nav */}
-        <nav style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-          <Link href="/" legacyBehavior><a>Home</a></Link>
-          <Link href="/minifigs?type=MINIFIG&limit=36" legacyBehavior><a>Minifigs</a></Link>
-          <Link href="/minifigs?limit=36&type=PART" legacyBehavior><a>Parts</a></Link>
-        </nav>
+      <main style={{ padding: 24 }}>
+        <header style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>
+            {type} <span style={{ opacity: 0.6 }}>({count} total)</span>
+          </h1>
 
-        <h1 style={{ fontSize: 32, margin: '8px 0 4px' }}>
-          {`Inventory: ${type}`}
-        </h1>
-        <div style={{ color: '#555', marginBottom: 16 }}>
-          {`Total ${count} • Page ${page} / ${totalPages} • Showing ${items.length}`}
-        </div>
+          {/* Quick type switchers (keeps your default to MINIFIG) */}
+          <nav style={{ display: 'flex', gap: 10 }}>
+            <Link href={`/minifigs?type=MINIFIG&limit=${limit}`}>Minifigs</Link>
+            <Link href={`/minifigs?limit=${limit}`}>All Types</Link>
+          </nav>
+        </header>
 
         {/* Grid */}
-        <div
+        <ul
           style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
             gap: 16,
           }}
         >
-          {items.map((item, idx) => {
-            const key =
-              item.inventoryId ??
-              (item.itemNo ? `${item.itemNo}-${idx}` : `row-${idx}`)
-            const name = decode(item.name || '—')
+          {items.map((it) => {
+            const name = decode(it.name ?? '') || '(no name)'
+            const price =
+              it.price != null ? `$${Number(it.price).toFixed(2)}` : '—'
+            const qty = it.qty ?? 0
+
+            const imgSrc =
+              it.imageUrl && it.imageUrl.trim() !== ''
+                ? it.imageUrl
+                : 'https://via.placeholder.com/300x300?text=No+Image'
+
             return (
-              <div
-                key={key}
+              <li
+                key={String(it.inventoryId ?? `${it.itemNo}-${it.name}`)}
                 style={{
-                  border: '1px solid #e5e5e5',
-                  borderRadius: 8,
-                  padding: 12,
                   background: '#fff',
+                  borderRadius: 10,
+                  padding: 12,
+                  boxShadow: '0 1px 4px rgba(0,0,0,.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
                 }}
               >
-                {/* Image */}
-                <div
-                  style={{
-                    width: '100%',
-                    aspectRatio: '1 / 1',
-                    background: '#f3f3f3',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 6,
-                    overflow: 'hidden',
-                    marginBottom: 12,
-                  }}
-                >
-                  {item.imageUrl ? (
-                    <Image
-                      src={item.imageUrl}
-                      alt={name}
-                      width={400}
-                      height={400}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                    />
-                  ) : (
-                    <span style={{ color: '#888' }}>No Image</span>
-                  )}
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 8 }}>
+                  {/* Next/Image with fixed layout to avoid legacy props */}
+                  <Image
+                    src={imgSrc}
+                    alt={name}
+                    fill
+                    sizes="(max-width: 600px) 50vw, 240px"
+                    style={{ objectFit: 'contain' }}
+                    unoptimized={imgSrc.startsWith('http')}
+                  />
                 </div>
 
-                {/* Text */}
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>{name}</div>
-                <div style={{ fontSize: 13, color: '#555' }}>
-                  {item.condition ?? '—'} • Qty: {item.qty ?? 0}
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <div style={{ fontWeight: 700, lineHeight: 1.2 }}>{name}</div>
+                  <div style={{ fontSize: 13, opacity: 0.75 }}>
+                    {it.itemNo ?? '—'} • {it.condition ?? '—'} • Qty {qty}
+                  </div>
+                  <div style={{ fontWeight: 700 }}>{price}</div>
                 </div>
-                <div style={{ fontSize: 13, color: '#555', marginTop: 6 }}>
-                  <strong>Description:</strong>{' '}
-                  {item.description ? decode(item.description) : '—'}
-                </div>
-                <div style={{ fontSize: 13, color: '#555' }}>
-                  <strong>Remarks:</strong> {item.remarks ? decode(item.remarks) : '—'}
-                </div>
-                <div style={{ fontWeight: 700, marginTop: 8 }}>
-                  {item.price != null ? `$${item.price.toFixed(2)}` : '—'}
-                </div>
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ul>
 
-        {/* Pagination */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginTop: 24,
-          }}
-        >
-          <Link
-            href={`/minifigs?type=${encodeURIComponent(
-              type
-            )}&limit=${limit}&page=${prevPage}`}
-            legacyBehavior
-          >
-            <a aria-disabled={page <= 1} style={{ pointerEvents: page <= 1 ? 'none' : 'auto', opacity: page <= 1 ? 0.5 : 1 }}>
-              ← Prev
-            </a>
-          </Link>
-          <span style={{ color: '#666' }}>
-            Page {page} of {totalPages}
+        {/* Pager */}
+        <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ opacity: 0.7 }}>
+            Page {page} / {totalPages}
           </span>
-          <Link
-            href={`/minifigs?type=${encodeURIComponent(
-              type
-            )}&limit=${limit}&page=${nextPage}`}
-            legacyBehavior
-          >
-            <a aria-disabled={page >= totalPages} style={{ pointerEvents: page >= totalPages ? 'none' : 'auto', opacity: page >= totalPages ? 0.5 : 1 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <Link href={page > 1 ? pageHref(page - 1) : pageHref(1)} aria-disabled={page <= 1}>
+              ← Prev
+            </Link>
+            <Link href={page < totalPages ? pageHref(page + 1) : pageHref(totalPages)} aria-disabled={page >= totalPages}>
               Next →
-            </a>
-          </Link>
+            </Link>
+          </div>
         </div>
-      </div>
+      </main>
     </>
   )
 }

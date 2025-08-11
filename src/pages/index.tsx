@@ -1,3 +1,4 @@
+// src/pages/index.tsx
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -33,11 +34,11 @@ export default function HomePage() {
             </p>
 
             <div className="ctaRow">
-              <Link href="/minifigs?type=MINIFIG&limit=36" legacyBehavior>
-                <a className="btnPrimary">Shop Now</a>
+              <Link href="/minifigs?type=MINIFIG&limit=36" className="btnPrimary">
+                Shop Now
               </Link>
-              <Link href="/minifigs?limit=36" legacyBehavior>
-                <a className="btnGhost">See All Items</a>
+              <Link href="/minifigs?limit=36" className="btnGhost">
+                See All Items
               </Link>
             </div>
           </div>
@@ -95,6 +96,7 @@ export default function HomePage() {
         }
         .ctaRow { display: flex; gap: 12px; }
         .btnPrimary {
+          display:inline-block;
           background: #e1b946;
           border: 2px solid #a2801a;
           padding: 10px 16px;
@@ -103,6 +105,7 @@ export default function HomePage() {
           color: #1a1a1a;
         }
         .btnGhost {
+          display:inline-block;
           background: transparent;
           border: 2px solid #204d69;
           padding: 10px 16px;
