@@ -417,7 +417,11 @@ total 10200
     35	  )
     36	
     37	  const SITE =
+<<<<<<< HEAD
     38	    process. PAYPAL_CLIENT_SECRET_REDACTED|| 'http://localhost:3000'
+=======
+    38	    process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+>>>>>>> 92a5210 (Lock layout: header/rail/footer finalized)
     39	
     40	  const url = `${SITE}/api/minifigs?type=${encodeURIComponent(
     41	    type

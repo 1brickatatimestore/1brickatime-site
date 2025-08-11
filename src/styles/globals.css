@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /* ────────────────── GLOBAL RESET / BASE ────────────────── */
 * { box-sizing: border-box; }
 html, body, #__next { height: 100%; }
@@ -154,3 +155,16 @@ a { color: inherit; text-decoration: none; }
 .addBtn{
   padding:8px 10px; border-radius:8px; border:1px solid #204d69; color:#204d69; background:#fff;
 }
+=======
+* { box-sizing: border-box; }
+html, body, #__next { height: 100%; }
+
+body{
+  margin:0;
+  background:#e9e3db;        /* cream */
+  color:#1e1e1e;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+}
+
+a { text-decoration: none; }
+>>>>>>> 92a5210 (Lock layout: header/rail/footer finalized)
