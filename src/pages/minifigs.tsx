@@ -53,6 +53,14 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
     router.push(`/minifigs?${p.toString()}`)
   }
 
+  // Let ENTER submit even when the select has focus
+  const onKeyDownSubmit: React.KeyboardEventHandler<HTMLElement> = (e) => {
+    if (e.key === 'Enter') {
+      const form = (e.target as HTMLElement).closest('form') as HTMLFormElement | null
+      if (form) form.requestSubmit()
+    }
+  }
+
   const hasItems = Array.isArray(items) && items.length > 0
 
   return (
@@ -62,7 +70,7 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
       </Head>
 
       <main className="wrap">
-        <form className="filters" onSubmit={onSubmit}>
+        <form className="filters" onSubmit={onSubmit} onKeyDown={onKeyDownSubmit}>
           <input
             ref={qRef}
             name="q"
@@ -86,48 +94,56 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
         {hasItems ? (
           <>
             <div className="grid">
-              {items.map((p) => (
-                <article key={p.inventoryId ?? p._id} className="card">
-                  <div className="imgBox">
-                    {p.imageUrl ? (
-                      <Image
-                        src={p.imageUrl}
-                        alt={p.name || p.itemNo || 'Minifig'}
-                        fill
-                        sizes="(max-width: 900px) 50vw, 240px"
-                        style={{ objectFit: 'contain' }}
-                      />
-                    ) : (
-                      <div className="noImg">No image</div>
-                    )}
-                  </div>
+              {items.map((p) => {
+                const id = p.inventoryId ? String(p.inventoryId) : (p._id as string)
+                const title = p.name || p.itemNo || 'Minifig'
+                return (
+                  <article key={id} className="card">
+                    {/* Clickable image */}
+                    <Link href={`/minifig/${encodeURIComponent(id)}`} className="imgLink" title={title}>
+                      <div className="imgBox">
+                        {p.imageUrl ? (
+                          <Image
+                            src={p.imageUrl}
+                            alt={title}
+                            fill
+                            sizes="(max-width: 900px) 50vw, 240px"
+                            style={{ objectFit: 'contain' }}
+                          />
+                        ) : (
+                          <div className="noImg">No image</div>
+                        )}
+                      </div>
+                    </Link>
 
-                  <h3 className="name" title={p.name}>
-                    {p.name || p.itemNo || 'Minifig'}
-                  </h3>
+                    {/* Clickable name */}
+                    <Link href={`/minifig/${encodeURIComponent(id)}`} className="name" title={title}>
+                      {title}
+                    </Link>
 
-                  <div className="priceRow">
-                    <span className="price">
-                      ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
-                    </span>
+                    <div className="priceRow">
+                      <span className="price">
+                        ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
+                      </span>
 
-                    <button
-                      className="addBtn"
-                      onClick={() =>
-                        add({
-                          id: p.inventoryId ? String(p.inventoryId) : (p._id as string),
-                          name: p.name ?? p.itemNo ?? 'Minifig',
-                          price: Number(p.price ?? 0),
-                          qty: 1,
-                          imageUrl: p.imageUrl,
-                        })
-                      }
-                    >
-                      Add to cart
-                    </button>
-                  </div>
-                </article>
-              ))}
+                      <button
+                        className="addBtn"
+                        onClick={() =>
+                          add({
+                            id,
+                            name: title,
+                            price: Number(p.price ?? 0),
+                            qty: 1,
+                            imageUrl: p.imageUrl,
+                          })
+                        }
+                      >
+                        Add to cart
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
 
             {pages > 1 && (
@@ -157,9 +173,11 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
         .meta { margin-left:auto; font-size:13px; color:#333; }
         .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
         .card { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; gap:8px; }
+        .imgLink { display:block; }
         .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; }
         .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; font-size:14px; }
-        .name { font-size:14px; margin:0 0 6px; min-height:34px; color:#1e1e1e; }
+        .name { display:block; font-size:14px; margin:0 0 6px; min-height:34px; color:#1e1e1e; font-weight:700; text-decoration:none; }
+        .name:hover { text-decoration:underline; }
         .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; }
         .price { font-weight:700; color:#2a2a2a; }
         .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; }
@@ -196,7 +214,6 @@ export async function getServerSideProps(ctx: any) {
   const res = await fetch(`${proto}://${host}/api/products?${params.toString()}`)
   if (res.ok) {
     const data = await res.json()
-    // Tolerate multiple shapes
     const arr =
       (Array.isArray(data.inventory) && data.inventory) ||
       (Array.isArray(data.items) && data.items) ||
