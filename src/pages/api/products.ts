@@ -1,141 +1,204 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '../../lib/db'
-import Product from '../../models/Product'
+import dbConnect from '@/lib/dbConnect'
+import Product from '@/models/Product'
+import overrides from '@/lib/themeOverrides.json'
 
-type Json = {
+type Item = {
+  _id?: string
+  inventoryId?: number
+  type?: string
+  itemNo?: string
+  name?: string
+  price?: number
+  condition?: string
+  imageUrl?: string
+  quantity?: number
+  qty?: number
+  stock?: number
+  inStock?: boolean
+}
+
+type Data = {
   count: number
-  items: any[]
+  items: Item[]
 }
 
-type ThemeKey = string
+const isTruthy = (v: any) => v === 1 || v === '1' || v === true || v === 'true'
 
-// Keep this exactly in-sync with /api/themes.ts
-const THEME_TO_PREFIXES: Record<ThemeKey, string[]> = {
-  'star-wars': ['sw'],
-  'harry-potter': ['hp'],
-  'ninjago': ['njo', 'ninjago'],
-  'jurassic-world': ['jw'],
-  'the-lego-movie': ['tlm'],
-  city: ['cty', 'twn', 'air', 'cop'],
-  'speed-champions': ['sc'],
-  space: ['sp'],
-  trains: ['trn'],
-  pirates: ['pi'],
-  'pirates-of-the-caribbean': ['poc'],
-  ghostbusters: ['gs'],
-  'the-simpsons': ['sim'],
-  'toy-story': ['toy'],
-  'spongebob-squarepants': ['bob'],
-  'hidden-side': ['hs'],
-  'indiana-jones': ['iaj'],
-  'legends-of-chima': ['loc'],
-  'ultra-agents': ['uagt'],
-  'nexo-knights': ['nex'],
-  atlantis: ['atl'],
-  vidiyo: ['vid'],
-  minions: ['min'],
-  ideas: ['idea'],
-  racers: ['rac'],
-  'monster-fighters': ['mof'],
-  'lego-dimensions': ['dim'],
-  castle: ['cas'],
-  adventurers: ['adv', 'adp'],
-  other: [], // handled separately
+// ---- THEME HELPERS ----------------------------------------------------------
+
+/**
+ * Compile regexes once from themeOverrides.json
+ */
+type ThemeMap = {
+  [slug: string]: { prefixes?: string[]; contains?: string[] }
+}
+const themeMap: ThemeMap = (() => {
+  const out: ThemeMap = {}
+  const src = overrides as any
+
+  const toArray = (v: any) =>
+    Array.isArray(v) ? v : typeof v === 'string' && v ? [v] : []
+
+  if (src?.mapPrefix) {
+    for (const [pref, slug] of Object.entries<string>(src.mapPrefix)) {
+      out[slug] ||= {}
+      out[slug].prefixes ||= []
+      out[slug].prefixes!.push(pref)
+    }
+  }
+  if (src?.mapContains) {
+    for (const [frag, slug] of Object.entries<string>(src.mapContains)) {
+      out[slug] ||= {}
+      out[slug].contains ||= []
+      out[slug].contains!.push(frag)
+    }
+  }
+  // normalize + uniq
+  for (const slug of Object.keys(out)) {
+    out[slug].prefixes = Array.from(new Set(toArray(out[slug].prefixes)))
+    out[slug].contains = Array.from(new Set(toArray(out[slug].contains)))
+  }
+  return out
+})()
+
+/**
+ * Build a Mongo match object for a specific theme slug.
+ * - For normal themes: OR of (itemNo startsWith any prefix) OR (name contains any fragment)
+ * - For "collectible-minifigures" with ?series=N: filter by series number in the name
+ * - For "other": NEGATION of ALL known theme tests (i.e., not matching any theme)
+ */
+function buildThemeMatch(theme?: string, series?: string) {
+  if (!theme || theme === '__ALL__') return {}
+
+  const lc = theme.toLowerCase()
+
+  // CMF series handling
+  if (lc === 'collectible-minifigures') {
+    if (series && /^[0-9]+$/.test(series)) {
+      const n = Number(series)
+      // Match e.g. "Series 11" / "Series 11" in the name
+      return {
+        name: { $regex: new RegExp(`\\bSeries\\s*${n}\\b`, 'i') },
+      }
+    }
+    // CMF without series = just the theme
+    const t = themeMap['collectible-minifigures'] || { prefixes: [], contains: [] }
+    return orFromThemeParts(t)
+  }
+
+  if (lc === 'other') {
+    // Build a single big $nor that rejects ANY known theme
+    const allParts = collectAllThemePartsExcluding('other')
+    const nor: any[] = []
+    if (allParts.prefixes.length) {
+      const big = new RegExp(`^(${allParts.prefixes.map(escapeRx).join('|')})`, 'i')
+      nor.push({ itemNo: { $regex: big } })
+    }
+    if (allParts.contains.length) {
+      const anyFrag = new RegExp(`(${allParts.contains.map(escapeRx).join('|')})`, 'i')
+      nor.push({ name: { $regex: anyFrag } })
+    }
+    // If we have nothing to negate, fall back to {} (rare)
+    return nor.length ? { $nor: nor } : {}
+  }
+
+  // Normal named theme
+  const t = themeMap[lc] || { prefixes: [], contains: [] }
+  return orFromThemeParts(t)
 }
 
-function buildThemeRegexes(theme?: string) {
-  if (!theme || theme === '__ALL__') return null
-  if (theme === 'collectible-minifigures') return [/^col/i]
-
-  const prefixes = THEME_TO_PREFIXES[theme]
-  if (!prefixes || prefixes.length === 0) {
-    return null
+function collectAllThemePartsExcluding(excludeSlug: string) {
+  const prefixes: string[] = []
+  const contains: string[] = []
+  for (const [slug, parts] of Object.entries(themeMap)) {
+    if (slug === excludeSlug) continue
+    if (parts.prefixes?.length) prefixes.push(...parts.prefixes)
+    if (parts.contains?.length) contains.push(...parts.contains)
   }
-  return prefixes.map(p => new RegExp(`^${p}`, 'i'))
+  return { prefixes: Array.from(new Set(prefixes)), contains: Array.from(new Set(contains)) }
 }
 
-function buildSeriesRegex(series?: string) {
-  if (!series) return null
-  // numeric: cmf-series-# (UI) or just the number
-  const s = String(series).replace(/^cmf-series-/, '')
-  if (/^\d+$/.test(s)) {
-    // col01, col001 … allow any 0-padded numeric
-    return new RegExp(`^col0*${s}`, 'i')
+function orFromThemeParts(parts: { prefixes?: string[]; contains?: string[] }) {
+  const or: any[] = []
+  if (parts.prefixes?.length) {
+    const rx = new RegExp(`^(${parts.prefixes.map(escapeRx).join('|')})`, 'i')
+    or.push({ itemNo: { $regex: rx } })
   }
-  // named like 'marvel', 'hp', 'tlm' etc.
-  const code = s.replace(/[^a-z]/gi, '').toLowerCase()
-  if (!code) return null
-  return new RegExp(`^col${code}`, 'i')
+  if (parts.contains?.length) {
+    const rx = new RegExp(`(${parts.contains.map(escapeRx).join('|')})`, 'i')
+    or.push({ name: { $regex: rx } })
+  }
+  return or.length ? { $or: or } : {}
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Json | { error: string }>) {
-  await dbConnect()
+function escapeRx(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
-  const {
-    type = 'MINIFIG',
-    q = '',
-    cond = '',
-    page = '1',
-    limit = '36',
-    theme = '__ALL__',
-    series = '',
-  } = req.query as Record<string, string>
+// ---- API --------------------------------------------------------------------
 
-  const pageNum = Math.max(1, Number(page) || 1)
-  const limitNum = Math.max(1, Math.min(72, Number(limit) || 36))
-  const skip = (pageNum - 1) * limitNum
+export default async function handler(req: NextApiRequest, res: NextApiResponse<Data | any>) {
+  try {
+    await dbConnect(process.env.MONGODB_URI!)
 
-  const filter: any = { type }
+    const {
+      type = 'MINIFIG',
+      page = '1',
+      limit = '36',
+      q = '',
+      cond = '',
+      onlyInStock = '',
+      theme = '__ALL__',
+      series = '',
+    } = req.query as Record<string, string>
 
-  if (q) {
-    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-    filter.$or = [{ name: rx }, { itemNo: rx }]
+    const pg = Math.max(1, Number(page) || 1)
+    const lim = Math.max(1, Math.min(120, Number(limit) || 36))
+    const skip = (pg - 1) * lim
+
+    const match: any = {}
+    if (type) match.type = String(type).toUpperCase()
+
+    // search
+    const nameNo = String(q || '').trim()
+    if (nameNo) {
+      match.$or = [
+        { name: { $regex: new RegExp(escapeRx(nameNo), 'i') } },
+        { itemNo: { $regex: new RegExp(escapeRx(nameNo), 'i') } },
+      ]
+    }
+
+    // condition
+    if (cond === 'N' || cond === 'U') match.condition = cond
+
+    // stock
+    if (isTruthy(onlyInStock)) {
+      match.$or = (match.$or || []).concat([
+        { qty: { $gt: 0 } },
+        { quantity: { $gt: 0 } },
+        { stock: { $gt: 0 } },
+        { inStock: true },
+      ])
+    }
+
+    // theme & series
+    const themeFilter = buildThemeMatch(theme, series)
+    Object.assign(match, themeFilter)
+
+    // Count + fetch
+    const [count, items] = await Promise.all([
+      Product.countDocuments(match),
+      Product.find(match)
+        .sort({ name: 1, itemNo: 1 })
+        .skip(skip)
+        .limit(lim)
+        .lean(),
+    ])
+
+    res.status(200).json({ count, items })
+  } catch (err: any) {
+    console.error('products_api_error', err)
+    res.status(500).json({ error: 'products_api_error', message: err?.message || String(err) })
   }
-
-  if (cond === 'N' || cond === 'U') {
-    filter.condition = cond
-  }
-
-  // Theme filtering
-  const themeRegexes = buildThemeRegexes(theme)
-  if (themeRegexes) {
-    filter.$or = filter.$or || []
-    filter.$or.push(...themeRegexes.map(r => ({ itemNo: r })))
-  }
-
-  // Series filtering (only meaningful for CMF)
-  const seriesRx = buildSeriesRegex(series)
-  if (seriesRx) {
-    filter.itemNo = seriesRx
-  }
-
-  const [items, count] = await Promise.all([
-    Product.find(filter)
-      .sort({ name: 1, itemNo: 1 })
-      .skip(skip)
-      .limit(limitNum)
-      .lean()
-      .exec(),
-    Product.countDocuments(filter),
-  ])
-
-  // Make dates and numbers JSON-safe & consistent
-  const safeItems = items.map((d: any) => ({
-    _id: String(d._id),
-    inventoryId: d.inventoryId ?? null,
-    type: d.type ?? 'MINIFIG',
-    categoryId: d.categoryId ?? null,
-    itemNo: d.itemNo ?? '',
-    name: d.name ?? '',
-    condition: d.condition ?? '',
-    description: d.description ?? '',
-    remarks: d.remarks ?? '',
-    price: Number(d.price ?? 0),
-    qty: Number(d.qty ?? 0),
-    imageUrl: d.imageUrl ?? '',
-    createdAt: d.createdAt ? new Date(d.createdAt).toISOString() : null,
-    updatedAt: d.updatedAt ? new Date(d.updatedAt).toISOString() : null,
-  }))
-
-  res.status(200).json({ count, items: safeItems })
 }
