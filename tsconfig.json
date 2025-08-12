@@ -1,10 +1,16 @@
 {
   "compilerOptions": {
+<<<<<<< HEAD
     "target": "ES2022",
     "lib": ["dom", "dom.iterable", "es2022"],
+=======
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+>>>>>>> 2e685bd (Minifigs-by-theme: live CMF counts + Enter key; keep existing themes API)
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -12,13 +18,30 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+<<<<<<< HEAD
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
       "@/components/*": ["src/components/*"]
     },
     "esModuleInterop": true
+=======
+
+    /* 🔽 PATH ALIAS so "@/..." points to ./src */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    /* Next.js TS plugin (optional but nice) */
+    "plugins": [{ "name": "next" }]
+>>>>>>> 2e685bd (Minifigs-by-theme: live CMF counts + Enter key; keep existing themes API)
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

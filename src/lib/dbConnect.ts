@@ -1,6 +1,7 @@
 // src/lib/dbConnect.ts
 import mongoose from 'mongoose'
 
+<<<<<<< HEAD
 declare global {
   //  PAYPAL_CLIENT_SECRET_REDACTEDno-var
   var __MONGO_CONN: {
@@ -35,5 +36,34 @@ export default async function dbConnect(uriFromEnv?: string) {
   // Make it easy for other modules to find the live connection
   ;(global as any).mongoose = mongoose
 
+=======
+/**
+ * Reusable Mongoose connector with global caching in dev
+ * so we don't open a new socket on every API call.
+ */
+const MONGODB_URI = process.env.MONGODB_URI
+if (!MONGODB_URI) {
+  throw new Error('Missing MONGODB_URI in environment')
+}
+
+type Cached = { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null }
+
+// @ts-ignore - attach to global in dev
+let cached: Cached = global._mongooseCached || { conn: null, promise: null }
+// @ts-ignore
+if (!global._mongooseCached) global._mongooseCached = cached
+
+export default async function dbConnect(uri = MONGODB_URI) {
+  if (cached.conn) return cached.conn
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(uri, {
+        // sane defaults
+        dbName: undefined, // use the one in the URI
+      })
+      .then((m) => m)
+  }
+  cached.conn = await cached.promise
+>>>>>>> 2e685bd (Minifigs-by-theme: live CMF counts + Enter key; keep existing themes API)
   return cached.conn
 }
