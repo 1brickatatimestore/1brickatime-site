@@ -1,71 +1,79 @@
-// src/pages/api/products.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '../../lib/db'
-import Product from '../../models/Product'
-import { THEME_MAP, normalizePrefix, isCollectiblePrefix } from '../../lib/theme-map'
+import dbConnect from '@/lib/db'
+import Product from '@/models/Product'
+import { extractPrefix, mapThemeKey, ThemeKey } from '@/lib/theme-map'
+
+type Item = {
+  _id?: string
+  inventoryId?: number
+  type?: string
+  itemNo?: string
+  name?: string
+  condition?: string
+  price?: number
+  qty?: number
+  imageUrl?: string
+}
 
 type Json = {
   count: number
-  inventory: any[]
-}
-
-function buildThemeFilter(theme?: string) {
-  if (!theme) return null
-
-  // Collectible Minifigures: any itemNo starting with "col"
-  if (theme === 'collectible-minifigures') {
-    return { itemNo: { $regex: /^col/i } }
-  }
-
-  // Gather all source prefixes that map to this normalized key
-  const wantedPrefixes = Object.keys(THEME_MAP).filter(
-    (pref) => normalizePrefix(pref)?.key === theme
-  )
-
-  if (wantedPrefixes.length === 0) {
-    if (theme === 'other') {
-      // "Other (Singles)" = anything that doesn't map to a known theme or collectible
-      // We approximate by excluding known prefixes.
-      const known = Object.keys(THEME_MAP)
-      return {
-        $and: [
-          { itemNo: { $not: /^col/i } },
-          {
-            $nor: known.map((p) => ({ itemNo: new RegExp(`^${p}`, 'i') })),
-          },
-        ],
-      }
-    }
-    return null
-  }
-
-  // Build an $or of regexes: ^sw|^hp|...
-  const ors = wantedPrefixes.map((p) => ({ itemNo: new RegExp(`^${p}`, 'i') }))
-  return { $or: ors }
+  page: number
+  limit: number
+  items: Item[]
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Json>) {
   await dbConnect()
 
-  const page = Math.max(1, Number(req.query.page || 1))
-  const limit = Math.min(120, Math.max(1, Number(req.query.limit || 36)))
-  const inStock = req.query.inStock === '1' || req.query.inStock === 'true'
-  const theme = typeof req.query.theme === 'string' ? req.query.theme : undefined
+  const {
+    type = 'MINIFIG',
+    page = '1',
+    limit = '36',
+    theme,
+    q = '',
+    condition,
+    priceMin,
+    priceMax,
+  } = req.query as Record<string, string>
 
-  const query: any = { type: 'MINIFIG' }
-  if (inStock) query.qty = { $gt: 0 }
+  const p = Math.max(1, parseInt(String(page), 10) || 1)
+  const lim = Math.min(100, Math.max(1, parseInt(String(limit), 10) || 36))
 
-  const themeFilter = buildThemeFilter(theme)
-  if (themeFilter) Object.assign(query, themeFilter)
+  const docs: Item[] = await Product.find(
+    { type },
+    { _id: 1, inventoryId: 1, itemNo: 1, name: 1, condition: 1, price: 1, qty: 1, imageUrl: 1 }
+  )
+    .sort({ updatedAt: -1 })
+    .lean()
 
-  const [count, inventory] = await Promise.all([
-    Product.countDocuments(query),
-    Product.find(query)
-      .sort({ name: 1, itemNo: 1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean(),
-  ])
+  let items = docs
 
-  res.json({ count, inventory })
+  if (theme && theme.length) {
+    const tKey = theme as ThemeKey
+    items = items.filter(d => mapThemeKey(extractPrefix(d.itemNo)) === tKey)
+  }
+
+  const query = q.trim().toLowerCase()
+  if (query) {
+    items = items.filter(d => {
+      const name = (d.name || '').toLowerCase()
+      const no = (d.itemNo || '').toLowerCase()
+      return name.includes(query) || no.includes(query)
+    })
+  }
+
+  if (condition === 'N' || condition === 'U') {
+    items = items.filter(d => (d.condition || '').toUpperCase() === condition.toUpperCase())
+  }
+
+  const min = priceMin ? Number(priceMin) : undefined
+  const max = priceMax ? Number(priceMax) : undefined
+  if (Number.isFinite(min as number)) items = items.filter(d => Number(d.price || 0) >= (min as number))
+  if (Number.isFinite(max as number)) items = items.filter(d => Number(d.price || 0) <= (max as number))
+
+  const count = items.length
+  const start = (p - 1) * lim
+  const paged = items.slice(start, start + lim)
+
+  res.status(200).json({ count, page: p, limit: lim, items: paged })
 }
