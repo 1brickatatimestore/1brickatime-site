@@ -1,194 +1,141 @@
-// src/pages/checkout.tsx
-import { useEffect, useMemo, useState } from 'react';
-import Head from 'next/head';
+import Head from 'next/head'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useCart } from '@/context/CartContext'
+import { useMemo, useState } from 'react'
 
-type CartItem = { itemNo?: string; name: string; price: number; qty: number };
-
-function readCart(): CartItem[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem('cart') || '[]'); } catch { return []; }
-}
+const BANK_NAME = 'Bank Deposit'
+const BANK_DETAILS = [
+  'Account name: Kamila McIntyre',
+  'BSB: 032-513',
+  'Account number: 450871'
+].join('\n')
 
 export default function CheckoutPage() {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [manualAmount, setManualAmount] = useState<string>('');
+  const { items, updateQty, removeItem, clearCart, subtotal } = useCart()
+  const [method, setMethod] = useState<'bank'|'paypal'|'stripe'>('bank')
 
-  useEffect(() => { setCart(readCart()); }, []);
-
-  const total = useMemo(() => {
-    const sum = cart.reduce((s, i) => s + i.price * (i.qty || 1), 0);
-    if (!cart.length && manualAmount) return Number(manualAmount) || 0;
-    return sum;
-  }, [cart, manualAmount]);
-
-  async function payStripe() {
-    const items = cart.length
-      ? cart
-      : [{ name: 'Custom Order', price: Number(manualAmount || 0), qty: 1 }];
-    const res = await fetch('/api/checkout/stripe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items,
-        success_url: `${location.origin}/checkout?status=success`,
-        cancel_url: `${location.origin}/checkout?status=cancel`,
-      }),
-    });
-    const data = await res.json();
-    if (data.url) location.href = data.url;
-    else alert(data.error || 'Could not start Stripe checkout.');
-  }
-
-  async function placeBankOrder(e: React.FormEvent) {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const fd = new FormData(form);
-    const customer = {
-      name: fd.get('name') as string,
-      email: fd.get('email') as string,
-      notes: fd.get('notes') as string,
-    };
-    const items = cart.length
-      ? cart
-      : [{ name: 'Custom Order', price: Number(manualAmount || 0), qty: 1 }];
-
-    const res = await fetch('/api/orders/bank', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customer, items }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      alert('Bank order created. Please make the transfer using the details shown.');
-      localStorage.removeItem('cart');
-      setCart([]);
-    } else {
-      alert(data.error || 'Could not create bank order.');
-    }
-  }
-
-  // PayPal Buttons loader
-  useEffect(() => {
-    const CID = process. PAYPAL_CLIENT_SECRET_REDACTED|| '';
-    if (!CID) return;
-    const id = 'paypal-sdk';
-    if (document.getElementById(id)) return;
-    const s = document.createElement('script');
-    s.id = id;
-    s.src = `https://www.paypal.com/sdk/js?client-id=${CID}&currency=AUD`;
-    s.async = true;
-    s.onload = () => {
-      // @ts-ignore
-      if (window.paypal) {
-        // @ts-ignore
-        window.paypal.Buttons({
-          createOrder: async () => {
-            const amount = cart.length
-              ? cart.reduce((s: number, i: CartItem) => s + i.price * (i.qty || 1), 0)
-              : Number(manualAmount || 0);
-            const r = await fetch('/api/checkout/paypal-create', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ amount }),
-            });
-            const d = await r.json();
-            return d.id;
-          },
-          onApprove: async (data: any) => {
-            const r = await fetch('/api/checkout/paypal-capture', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderId: data.orderID }),
-            });
-            const d = await r.json();
-            if (d.ok) {
-              alert('Payment completed via PayPal. Thank you!');
-              localStorage.removeItem('cart');
-              setCart([]);
-            } else {
-              alert('PayPal capture failed.');
-            }
-          },
-        }).render('#paypal-buttons');
-      }
-    };
-    document.body.appendChild(s);
-  }, [cart, manualAmount]);
+  const orderRef = useMemo(() => {
+    const t = new Date()
+    return '1BAT-' + [
+      t.getFullYear(),
+      String(t.getMonth()+1).padStart(2,'0'),
+      String(t.getDate()).padStart(2,'0'),
+      String(t.getHours()).padStart(2,'0'),
+      String(t.getMinutes()).padStart(2,'0'),
+    ].join('')
+  }, [])
 
   return (
     <>
-      <Head><title>Checkout</title></Head>
-      <div style={{ marginLeft: '64px', padding: '24px' }}>
-        <h1 style={{ marginBottom: 8 }}>Checkout</h1>
-        <p style={{ color: '#666', marginTop: 0 }}>
-          Choose one of the payment methods below.
-        </p>
+      <Head><title>Checkout — 1 Brick at a Time</title></Head>
 
-        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, maxWidth: 1100 }}>
-          {/* Bank Deposit */}
-          <div style={{ background: '#fff', borderRadius: 10, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <h3 style={{ marginTop: 0 }}>Bank Deposit</h3>
-            <p style={{ fontSize: 14, lineHeight: 1.4 }}>
-              Transfer the total to:<br />
-              <b>Kamila McIntyre</b><br />
-              <b>BSB:</b> 032-513<br />
-              <b>Acc. Number:</b> 450871
-            </p>
-            <form onSubmit={placeBankOrder}>
-              <div style={{ display: 'grid', gap: 8 }}>
-                <input name="name" placeholder="Your name" required />
-                <input name="email" placeholder="Email (for receipt)" required />
-                <textarea name="notes" placeholder="Order notes (optional)" rows={3} />
-                {!cart.length && (
-                  <input
-                    placeholder="Amount (AUD)"
-                    value={manualAmount}
-                    onChange={(e) => setManualAmount(e.target.value)}
-                    required
-                  />
-                )}
-                <button type="submit" style={{ padding: '10px 14px', borderRadius: 8, background: '#1f5376', color: '#fff', border: 0 }}>
-                  Place Bank Order
+      <h1 style={{ margin:'0 0 16px' }}>Checkout</h1>
+      {items.length === 0 ? (
+        <p>Your cart is empty. <Link href="/minifigs?type=MINIFIG&limit=36">Continue shopping</Link></p>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 360px', gap:24, alignItems:'start' }}>
+          {/* Cart items */}
+          <div>
+            {items.map(i => (
+              <div key={i.id} style={{
+                display:'grid', gridTemplateColumns:'88px 1fr auto', gap:12, alignItems:'center',
+                padding:'12px 0', borderBottom:'1px solid #e2e2e2'
+              }}>
+                <div style={{ position:'relative', width:88, height:88, background:'#fff', borderRadius:8, overflow:'hidden', display:'grid', placeItems:'center' }}>
+                  {i.imageUrl ? (
+                    <Image src={i.imageUrl} alt={i.name || i.itemNo || ''} fill sizes="88px" style={{ objectFit:'contain' }}/>
+                  ) : <div style={{ color:'#999' }}>No image</div>}
+                </div>
+                <div>
+                  <div style={{ fontWeight:700 }}>{i.name || i.itemNo}</div>
+                  <div style={{ color:'#666', fontSize:13 }}>{i.itemNo}</div>
+                  <div style={{ marginTop:8, display:'flex', gap:8, alignItems:'center' }}>
+                    <label>
+                      Qty{' '}
+                      <input
+                        type="number"
+                        min={1}
+                        value={i.qty}
+                        onChange={e => updateQty(i.id, Math.max(1, parseInt(e.target.value || '1', 10)))}
+                        style={{ width:70, padding:'6px 8px', borderRadius:8, border:'1px solid #bbb' }}
+                      />
+                    </label>
+                    <button onClick={() => removeItem(i.id)} style={{ marginLeft:8, color:'#b5463b' }}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <div style={{ fontWeight:800 }}>${((i.price ?? 0) * i.qty).toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sidebar */}
+          <aside style={{
+            border:'1px solid #ddd', borderRadius:12, padding:16, background:'#fff',
+            boxShadow:'0 2px 10px rgba(0,0,0,.05)'
+          }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+              <span>Subtotal</span>
+              <strong>${subtotal.toFixed(2)}</strong>
+            </div>
+            <div style={{ color:'#666', fontSize:13, marginBottom:16 }}>
+              Shipping is calculated after you confirm. Local pickup can be arranged on request.
+            </div>
+
+            <div style={{ margin:'12px 0 8px', fontWeight:700 }}>Payment</div>
+            <label style={{ display:'block', marginBottom:6 }}>
+              <input type="radio" name="pay" checked={method==='bank'} onChange={() => setMethod('bank')} /> Bank deposit
+            </label>
+            <label style={{ display:'block', marginBottom:6 }}>
+              <input type="radio" name="pay" checked={method==='paypal'} onChange={() => setMethod('paypal')} /> PayPal (coming next)
+            </label>
+            <label style={{ display:'block', marginBottom:12 }}>
+              <input type="radio" name="pay" checked={method==='stripe'} onChange={() => setMethod('stripe')} /> Card via Stripe (coming next)
+            </label>
+
+            {method === 'bank' && (
+              <div style={{ background:'#f7f2e4', border:'1px dashed #bfa86a', borderRadius:8, padding:12, marginBottom:12 }}>
+                <div style={{ fontWeight:800, marginBottom:6 }}>{BANK_NAME}</div>
+                <div style={{ whiteSpace:'pre-wrap', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize:13 }}>
+                  {BANK_DETAILS}
+                </div>
+                <div style={{ marginTop:8, fontSize:13, color:'#333' }}>
+                  Reference: <strong>{orderRef}</strong>
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(`${BANK_DETAILS}\nReference: ${orderRef}`)}
+                  style={{ marginTop:10, padding:'8px 10px', borderRadius:8, border:'1px solid #a2801a', background:'#e1b946', fontWeight:800, cursor:'pointer' }}
+                >
+                  Copy bank details
                 </button>
               </div>
-            </form>
-          </div>
-
-          {/* PayPal */}
-          <div style={{ background: '#fff', borderRadius: 10, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <h3 style={{ marginTop: 0 }}>PayPal</h3>
-            {!cart.length && (
-              <input
-                placeholder="Amount (AUD)"
-                value={manualAmount}
-                onChange={(e) => setManualAmount(e.target.value)}
-                style={{ marginBottom: 8 }}
-              />
             )}
-            <div id="paypal-buttons" />
-          </div>
 
-          {/* Stripe */}
-          <div style={{ background: '#fff', borderRadius: 10, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-            <h3 style={{ marginTop: 0 }}>Card (Stripe)</h3>
-            {!cart.length && (
-              <input
-                placeholder="Amount (AUD)"
-                value={manualAmount}
-                onChange={(e) => setManualAmount(e.target.value)}
-                style={{ marginBottom: 8 }}
-              />
-            )}
-            <button onClick={payStripe} style={{ padding: '10px 14px', borderRadius: 8, background: '#635bff', color: '#fff', border: 0 }}>
-              Pay with card (Stripe)
+            <button
+              onClick={() => {
+                if (method === 'bank') {
+                  alert(`Thanks! Please make a bank transfer with reference ${orderRef}. We’ll confirm via email.`)
+                  clearCart()
+                } else {
+                  alert('PayPal/Stripe buttons will appear after we connect your keys.')
+                }
+              }}
+              style={{
+                width:'100%', padding:'12px 16px', borderRadius:10,
+                background:'#1f5376', color:'#fff', fontWeight:800, border:'none', cursor:'pointer'
+              }}
+            >
+              {method === 'bank' ? 'Place Manual Order' : 'Continue to Payment'}
             </button>
-          </div>
-        </section>
 
-        <div style={{ marginTop: 24, fontSize: 14, color: '#444' }}>
-          <b>Total (AUD):</b> ${total.toFixed(2)}
+            <div style={{ textAlign:'center', marginTop:8 }}>
+              <Link href="/minifigs?type=MINIFIG&limit=36">← Keep shopping</Link>
+            </div>
+          </aside>
         </div>
-      </div>
+      )}
     </>
-  );
+  )
 }
