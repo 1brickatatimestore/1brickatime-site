@@ -1,18 +1,27 @@
-import React from 'react';
-import styles from './CartBadge.module.css';
-import { useCart } from '../context/CartContext';
+// src/components/CartBadge.tsx
+import Link from 'next/link'
+import { useCart } from '@/context/CartContext'
+import styles from './CartBadge.module.css'
 
-const CartBadge: React.FC = () => {
-  const { cart } = useCart();
-
-  const itemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+export default function CartBadge() {
+  const { items } = useCart()
+  const total = items.reduce((n, i) => n + (i.qty || 0), 0)
 
   return (
-    <div className={styles.cartBadge}>
-      <span role="img" aria-label="cart">🛒</span>
-      {itemCount > 0 && <span className={styles.badge}>{itemCount}</span>}
-    </div>
-  );
-};
+    <Link href="/checkout" className={styles.badge} aria-label={`Cart with ${total} items`} title="View cart / Checkout">
+      {/* cart icon */}
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M7 4h-2l-1 2v2h2l3.6 7.59-1.35 2.41A2 2 0 0 0 10 21h9v-2H10l1.1-2h7.45a2 2 0 0 0 1.79-1.11L22 9H7.42l-.75-1.5L6 6h13V4H7z"/>
+      </svg>
 
-export default CartBadge;
+      {/* always render the bubble to avoid DOM shape mismatch */}
+      <span
+        className={styles.count}
+        data-empty={total === 0 ? '1' : '0'}
+        suppressHydrationWarning
+      >
+        {total > 99 ? '99+' : total}
+      </span>
+    </Link>
+  )
+}
