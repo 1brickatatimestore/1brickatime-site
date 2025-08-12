@@ -1,0 +1,46 @@
+{
+  "groups": [
+    ["city", ["cty", "twn", "res", "jbl", "spl", "pln", "ovr", "chef", "cop", "div", "air", "jstr"]],
+    ["star-wars", ["sw0", "sw1"]],
+    ["ninjago", ["njo"]],
+    ["harry-potter", ["hp0", "hp1", "hp2", "hp3"]],
+    ["jurassic-world", ["jw0"]],
+    ["the-lego-movie", ["tlm", "mm0"]],
+    ["speed-champions", ["sc0", "sc1"]],
+    ["indiana-jones", ["iaj"]],
+    ["hidden-side", ["hs0"]],
+    ["monster-fighters", ["mof"]],
+    ["nexo-knights", ["nex"]],
+    ["lego-dimensions", ["dim"]],
+    ["space", ["sp0"]],
+    ["castle", ["cas"]],
+    ["pirates", ["pi0", "pi1"]],
+    ["racers", ["rac"]],
+    ["trains", ["trn"]],
+    ["ultra-agents", ["uag"]],
+    ["legends-of-chima", ["loc"]],
+    ["ideas", ["ide"]],
+    ["ghostbusters", ["gs0"]],
+    ["minions", ["min"]],
+    ["the-simpsons", ["tlr", "sim"]]
+  ],
+  "mapPrefix": {
+    "col": "collectible-minifigures",
+    "dis": "disney",
+    "inc": "disney",
+    "toy": "toy-story",
+    "vid": "vidiyo",
+    "atl": "atlantis",
+    "adp": "adventurers",
+    "mof": "monster-fighters",
+    "mm0": "the-lego-movie",
+    "jw0": "jurassic-world",
+    "tnt": "teenage-mutant-ninja-turtles",
+    "rac": "racers",
+    "fab": "fabuland"
+  },
+  "mapContains": {
+    "pirates of the caribbean": "pirates-of-the-caribbean",
+    "pirates of the caribbean": "pirates-of-the-caribbean"
+  }
+}
