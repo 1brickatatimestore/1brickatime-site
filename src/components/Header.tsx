@@ -1,25 +1,22 @@
-import Link from 'next/link'
-import Image from 'next/image'
-import s from './SiteLayout.module.css'
+// src/components/Header.tsx
+import Link from 'next/link';
+import styles from './SiteLayout.module.css';
 
 export default function Header() {
   return (
-    <header className={s.header}>
-      <Link href="/" className={s.brand}>
-        <Image
-          src="/logo.png"
-          alt="1 Brick at a Time"
-          width={28}
-          height={28}
-          priority
-        />
-        <span>1 Brick at a Time</span>
-      </Link>
-
-      <nav className={s.nav}>
-        <Link href="/">Home</Link>
-        <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
+    <header className={styles.header}>
+      <nav className={styles.nav}>
+        <div className={styles.brand}>
+          <span role="img" aria-label="stud">🧱</span>
+          <span>1 Brick at a Time</span>
+        </div>
+        <div className={styles.links}>
+          <Link href="/">Home</Link>
+          <Link href="/minifigs">Minifigs</Link>
+          <Link href="/minifigs-by-theme">Minifigs by Theme</Link>
+          <Link href="/checkout"><b>Checkout</b></Link>
+        </div>
       </nav>
     </header>
-  )
+  );
 }

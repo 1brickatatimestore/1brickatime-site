@@ -1,4 +1,3 @@
-// src/pages/index.tsx
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -19,6 +18,7 @@ export default function HomePage() {
               alt="1 Brick at a Time — logo"
               width={220}
               height={220}
+              sizes="(max-width: 920px) 200px, 220px"
               priority
             />
           </div>
@@ -29,8 +29,7 @@ export default function HomePage() {
             </h1>
 
             <p className="sub">
-              Owned by K &amp; K Enterprises — Director: Kamila McT. Building
-              connections — human and LEGO ones — since 2023.
+              Owned by K &amp; K Enterprises — Director: Kamila McT. Building connections — human and LEGO ones — since 2023.
             </p>
 
             <div className="ctaRow">
@@ -48,8 +47,7 @@ export default function HomePage() {
         <section className="note">
           <h2 className="gday">G’day,</h2>
           <p className="hand">
-            we strive for 100% customer satisfaction, so please let us know if
-            there’s anything else we can do for you.
+            we strive for 100% customer satisfaction, so please let us know if there’s anything else we can do for you.
           </p>
         </section>
       </main>
@@ -96,7 +94,6 @@ export default function HomePage() {
         }
         .ctaRow { display: flex; gap: 12px; }
         .btnPrimary {
-          display:inline-block;
           background: #e1b946;
           border: 2px solid #a2801a;
           padding: 10px 16px;
@@ -105,7 +102,6 @@ export default function HomePage() {
           color: #1a1a1a;
         }
         .btnGhost {
-          display:inline-block;
           background: transparent;
           border: 2px solid #204d69;
           padding: 10px 16px;
@@ -120,7 +116,7 @@ export default function HomePage() {
           font-size: 64px;
           line-height: 1;
           color: #b5463b;
-          font-family: 'Satisfy', cursive;  /* handwriting */
+          font-family: 'Satisfy', cursive;
           font-weight: 400;
         }
         .hand {
@@ -128,7 +124,7 @@ export default function HomePage() {
           max-width: 900px;
           font-size: 28px;
           line-height: 1.35;
-          font-family: 'Satisfy', cursive;  /* handwriting */
+          font-family: 'Satisfy', cursive;
           color: #1f1f1f;
         }
 

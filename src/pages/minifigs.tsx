@@ -1,248 +1,325 @@
 // src/pages/minifigs.tsx
-import Head from 'next/head';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { useEffect, useMemo, useState } from 'react';
+import Head from 'next/head'
+import Image from 'next/image'
+import Link from 'next/link'
+import type { GetServerSideProps } from 'next'
+import { decode } from 'html-entities'
 
-type Product = {
-  _id?: string;
-  inventoryId?: number;
-  name: string;
-  price: number;
-  imageUrl: string;
-  condition?: string; // 'N' | 'U'
-  remarks?: string;
-  qty?: number;
-  itemNo?: string;
-  type?: string;
-};
-
-type ApiResult = {
-  items: Product[];
-  total: number;
-  page: number;
-  pages: number;
-};
-
-const THEME_KEYWORDS: Record<string, string[]> = {
-  'Star Wars': ['star wars', 'sw ', 'skywalker', 'vader', 'stormtrooper', 'r2-d2'],
-  'Harry Potter': ['harry potter', 'hogwarts', 'weasley', 'malfoy', 'dumbledore', 'hermione'],
-  'Super Heroes': ['super heroes', 'super hero'],
-  Marvel: ['marvel', 'avengers', 'spider-man', 'spiderman', 'iron man', 'captain america', 'thor', 'hulk', 'nick fury'],
-  DC: ['dc', 'batman', 'joker', 'robin', 'harley', 'superman', 'wonder woman', 'flash', 'dick grayson'],
-  City: ['city', 'police', 'firefighter', 'construction'],
-  Ninjago: ['ninjago', 'lloyd', 'kai', 'cole', 'zane', 'nya', 'jay'],
-  Friends: ['friends', 'heartlake'],
-  Technic: ['technic'],
-  'Lord of the Rings': ['lord of the rings', 'lotr', 'aragorn', 'gandalf', 'legolas', 'frodo'],
-  Disney: ['disney', 'mickey', 'minnie', 'elsa', 'anna', 'moana'],
-  'Jurassic World': ['jurassic', 'dinosaur'],
-};
-
-function matchesTheme(p: Product, theme?: string) {
-  if (!theme) return true;
-  const keys = THEME_KEYWORDS[theme];
-  if (!keys) return true; // unknown theme → don't filter out
-  const hay = `${p.name ?? ''} ${p.remarks ?? ''} ${p.itemNo ?? ''}`.toLowerCase();
-  return keys.some((k) => hay.includes(k));
+type Item = {
+  _id?: string
+  inventoryId?: number | null
+  itemNo?: string | null
+  name?: string | null
+  price?: number | null
+  qty?: number | null
+  imageUrl?: string | null
+  condition?: 'N' | 'U' | string | null
+  type?: string | null
 }
 
-export default function MinifigsPage() {
-  const router = useRouter();
-  const { query } = router;
+type ThemeOpt = { key?: string; code?: string; label: string; count: number }
 
-  const [loading, setLoading] = useState(true);
-  const [result, setResult] = useState<ApiResult>({ items: [], total: 0, page: 1, pages: 1 });
+type Props = {
+  items: Item[]
+  count: number
+  page: number
+  limit: number
+  q: string
+  theme: string
+  condition: string
+  inStock: boolean
+  themes: ThemeOpt[]
+}
 
-  // Build query string with safe defaults
-  const apiQS = useMemo(() => {
-    const u = new URLSearchParams();
-    u.set('type', (query.type as string) || 'MINIFIG');
-    u.set('page', String(query.page || 1));
-    u.set('limit', String(query.limit || 36));
-    if (query.onlyInStock) u.set('onlyInStock', '1');
-    if (query.condition) u.set('condition', String(query.condition));
-    if (query.q) u.set('q', String(query.q));
-    return u.toString();
-  }, [query]);
+function pick<T>(v: T | undefined | null, fallback: T): T {
+  return v == null ? fallback : v
+}
 
-  // Robust fetch: try /api/minifigs, then /api/products (first one with items wins)
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
+export default function MinifigsPage(props: Props) {
+  const {
+    items,
+    count,
+    page,
+    limit,
+    q,
+    theme,
+    condition,
+    inStock,
+    themes,
+  } = props
 
-    const endpoints = [`/api/minifigs?${apiQS}`, `/api/products?${apiQS}`];
-
-    (async () => {
-      for (const url of endpoints) {
-        try {
-          const r = await fetch(url);
-          const data = await r.json();
-
-          // Normalize shapes: {items}, {products}, or [] directly
-          let items: Product[] = [];
-          if (Array.isArray(data?.items)) items = data.items as Product[];
-          else if (Array.isArray(data?.products)) items = data.products as Product[];
-          else if (Array.isArray(data)) items = data as Product[];
-
-          if (items.length > 0 || url === endpoints[endpoints.length - 1]) {
-            if (!alive) return;
-
-            const total = Number(data?.total ?? items.length) || items.length;
-            const page = Number(data?.page ?? query.page ?? 1) || 1;
-            const pages =
-              Number(data?.pages ?? Math.max(1, Math.ceil(total / Number(query.limit || 36)))) || 1;
-
-            setResult({ items, total, page, pages });
-            setLoading(false);
-            return;
-          }
-        } catch {
-          // try next endpoint
-        }
-      }
-
-      if (alive) {
-        setResult({ items: [], total: 0, page: 1, pages: 1 });
-        setLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [apiQS, query.limit, query.page]);
-
-  const theme = (query.theme as string) || '';
-  const filtered: Product[] = useMemo(() => {
-    const base = result?.items ?? [];
-    if (!theme) return base;
-    return base.filter((p) => matchesTheme(p, theme));
-  }, [result?.items, theme]);
-
-  // Toolbar submit
-  const apply = (e: React.FormEvent) => {
-    e.preventDefault();
-    const fd = new FormData(e.target as HTMLFormElement);
-    const u = new URLSearchParams();
-    u.set('type', 'MINIFIG');
-    u.set('page', '1');
-    u.set('limit', String(fd.get('limit') || '36'));
-    const q = String(fd.get('q') || '');
-    if (q) u.set('q', q);
-    const cond = String(fd.get('condition') || '');
-    if (cond) u.set('condition', cond);
-    if (fd.get('stock')) u.set('onlyInStock', '1');
-    if (theme) u.set('theme', theme);
-    router.push(`/minifigs?${u.toString()}`);
-  };
-
-  const reset = () => router.push('/minifigs?type=MINIFIG&page=1&limit=36');
+  const totalPages = Math.max(1, Math.ceil(count / limit))
 
   return (
     <>
-      <Head><title>Minifigures</title></Head>
+      <Head>
+        <title>{`Minifigs (${count}) – 1 Brick at a Time`}</title>
+      </Head>
 
-      <div className="wrap">
-        <div className="headerRow">
-          <h1>Minifigures</h1>
-          <Link className="link" href="/minifigs-by-theme">Minifigs by Theme</Link>
-        </div>
+      <main className="wrap">
+        <h1 className="title">Minifigures <span className="muted">({count})</span></h1>
 
-        <form className="toolbar" onSubmit={apply}>
-          <input name="q" placeholder="Name or item no..." defaultValue={(query.q as string) || ''} />
-          <select name="condition" defaultValue={(query.condition as string) || ''}>
-            <option value="">Any</option>
-            <option value="N">New</option>
-            <option value="U">Used</option>
-          </select>
-          <label className="check">
-            <input type="checkbox" name="stock" defaultChecked={!!query.onlyInStock} />
-            <span>Only in stock</span>
-          </label>
-          <select name="limit" defaultValue={(query.limit as string) || '36'}>
-            <option value="24">24</option>
-            <option value="36">36</option>
-            <option value="60">60</option>
-          </select>
-          <button type="submit">Apply</button>
-          <button type="button" className="ghost" onClick={reset}>Reset</button>
-          {theme && <span className="themeTag">Theme: {theme}</span>}
+        {/* Filters */}
+        <form className="filters" method="GET" action="/minifigs">
+          <input type="hidden" name="type" value="MINIFIG" />
+          <input type="hidden" name="page" value="1" />
+          <input type="hidden" name="limit" value={String(limit)} />
+
+          <div className="row">
+            <label className="field">
+              <span className="lab">Search</span>
+              <input
+                type="text"
+                name="q"
+                placeholder="name or number…"
+                defaultValue={q}
+              />
+            </label>
+
+            <label className="field">
+              <span className="lab">Theme</span>
+              <select name="theme" defaultValue={theme}>
+                <option value="">All themes</option>
+                {[...themes]
+                  .sort((a, b) => a.label.localeCompare(b.label))
+                  .map((t) => {
+                    const key = (t.key || t.code || t.label).toString()
+                    return (
+                      <option key={key} value={key}>
+                        {t.label} ({t.count})
+                      </option>
+                    )
+                  })}
+              </select>
+            </label>
+
+            <fieldset className="field">
+              <legend className="lab">Condition</legend>
+              <div className="conds">
+                <label className="chip">
+                  <input type="radio" name="condition" value="" defaultChecked={!condition} />
+                  <span>All</span>
+                </label>
+                <label className="chip">
+                  <input type="radio" name="condition" value="N" defaultChecked={condition === 'N'} />
+                  <span>New</span>
+                </label>
+                <label className="chip">
+                  <input type="radio" name="condition" value="U" defaultChecked={condition === 'U'} />
+                  <span>Used</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <label className="tick">
+              <input type="checkbox" name="inStock" value="1" defaultChecked={inStock} />
+              <span>In stock only</span>
+            </label>
+
+            <button className="apply" type="submit">Apply</button>
+          </div>
         </form>
 
-        {loading ? (
-          <p>Loading…</p>
-        ) : filtered.length === 0 ? (
-          <p>No items found.</p>
+        {/* Grid */}
+        {items.length === 0 ? (
+          <div className="empty">No items found.</div>
         ) : (
           <>
             <div className="grid">
-              {filtered.map((p) => (
-                <article key={p.inventoryId ?? p._id ?? p.name} className="card">
-                  <div className="imgBox">
-                    <Image
-                      src={p.imageUrl}
-                      alt={p.name}
-                      fill
-                      sizes="(max-width: 1024px) 50vw, 240px"
-                      style={{ objectFit: 'contain' }}
-                    />
-                  </div>
-                  <div className="meta">
-                    <div className="title" title={p.name}>{p.name}</div>
-                    <div className="row">
-                      <span className="price">${Number(p.price ?? 0).toFixed(2)}</span>
-                      {p.condition && <span className="pill">{p.condition === 'N' ? 'New' : 'Used'}</span>}
+              {items.map((p) => {
+                const id = p.inventoryId ?? p._id ?? `${p.itemNo}-${Math.random()}`
+                const name = decode(p.name || '') || p.itemNo || 'Minifig'
+                const href = p.inventoryId ? `/minifig/${p.inventoryId}` : '#'
+                return (
+                  <article key={id} className="card">
+                    <Link href={href} className="imgBox" aria-label={name}>
+                      {p.imageUrl ? (
+                        <Image
+                          src={p.imageUrl}
+                          alt={name}
+                          fill
+                          sizes="(max-width: 900px) 50vw, 240px"
+                          style={{ objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <div className="noImg">No image</div>
+                      )}
+                    </Link>
+                    <div className="meta">
+                      <h3 className="name">{name}</h3>
+                      <div className="line">
+                        {p.itemNo && <span className="pill">{p.itemNo}</span>}
+                        {p.condition && <span className="pill">{p.condition === 'N' ? 'New' : 'Used'}</span>}
+                        <span className="pill">{p.qty ?? 0} in stock</span>
+                      </div>
+                      <div className="price">{p.price != null ? `AU$ ${p.price}` : '—'}</div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                )
+              })}
             </div>
 
-            <p className="total">Showing {filtered.length} of {result.total}</p>
+            {/* Pagination */}
+            <nav className="pager">
+              <PageLink page={page - 1} disabled={page <= 1} label="← Prev"
+                q={q} theme={theme} condition={condition} inStock={inStock} limit={limit} />
+              <span className="pinfo">
+                Page {page} of {totalPages}
+              </span>
+              <PageLink page={page + 1} disabled={page >= totalPages} label="Next →"
+                q={q} theme={theme} condition={condition} inStock={inStock} limit={limit} />
+            </nav>
           </>
         )}
-      </div>
+      </main>
 
       <style jsx>{`
-        .wrap { max-width: 1100px; margin: 0 auto; padding: 24px; }
-        .headerRow { display:flex; justify-content:space-between; align-items:center; }
-        h1 { margin: 0 0 16px; font-size: 28px; }
-        .link { color:#ffd969; background:#1f5376; padding:8px 12px; border-radius:8px; }
+        .wrap {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 20px 24px 120px; /* keep clear of footer */
+        }
+        .title { margin: 0 0 12px; font-size: 28px; }
+        .muted { color: #666; font-weight: 500; }
 
-        .toolbar {
+        .filters { margin: 8px 0 18px; }
+        .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+        .field { display: grid; gap: 6px; }
+        .lab { font-size: 12px; color: #2b2b2b; }
+        input[type="text"], select {
+          height: 36px; padding: 0 10px; border: 1px solid #c7c3bd; border-radius: 8px; background: #fff;
+          min-width: 220px;
+        }
+        .conds { display: flex; gap: 6px; }
+        .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid #c7c3bd; border-radius: 999px; }
+        .tick { display: inline-flex; align-items: center; gap: 8px; }
+        .apply {
+          height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #204d69; background: #ffd969; font-weight: 700; color: #1a1a1a;
+        }
+
+        .grid {
           display: grid;
-          grid-template-columns: 1fr 140px 140px 120px 96px 96px auto;
-          gap: 10px;
-          align-items: center;
-          margin: 14px 0 16px;
+          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          gap: 14px;
         }
-        .toolbar input[name="q"] {
-          padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px;
+        .card {
+          background: #fff;
+          border: 1px solid #e0ddd7;
+          border-radius: 12px;
+          padding: 12px;
+          box-shadow: 0 1px 3px rgba(0,0,0,.05);
         }
-        .toolbar select { padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; }
-        .toolbar .check { display: flex; align-items: center; gap: 8px; }
-        .toolbar button {
-          padding: 10px 14px; border-radius: 8px; background:#e1b946; border:2px solid #a2801a; font-weight:700; cursor:pointer;
+        .imgBox {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 1 / 1; /* square */
+          background: #faf9f7;
+          border-radius: 10px;
+          display: block;
+          overflow: hidden;
         }
-        .toolbar .ghost { background:transparent; border:2px solid #204d69; color:#204d69; }
-        .toolbar .themeTag { margin-left: 8px; font-style: italic; }
+        .noImg {
+          width: 100%; height: 100%;
+          display: grid; place-items: center;
+          color: #999;
+          font-size: 13px;
+        }
+        .meta { margin-top: 10px; }
+        .name { margin: 0 0 6px; font-size: 14px; line-height: 1.25; color: #1f1f1f; }
+        .line { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+        .pill { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: #f0eee9; color: #333; }
+        .price { font-weight: 800; color: #1f1f1f; }
 
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-        .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.08); overflow: hidden; display: flex; flex-direction: column; }
-        .imgBox { position: relative; height: 200px; background: #fff; }
-        .meta { padding: 10px 12px; }
-        .title { font-size: 14px; line-height: 1.3; height: 36px; overflow: hidden; }
-        .row { display:flex; justify-content:space-between; align-items:center; margin-top: 6px; }
-        .price { font-weight: 700; }
-        .pill { padding: 2px 8px; border-radius: 999px; background: #eef3f6; color: #204d69; font-size: 12px; }
-        .total { margin-top: 12px; color: #555; }
-
+        .pager {
+          margin: 16px 0 0;
+          display: flex; align-items: center; gap: 12px; justify-content: center;
+        }
+        .pbtn {
+          padding: 8px 12px; border-radius: 8px; border: 1px solid #c7c3bd; background: #fff; color: #204d69;
+        }
+        .pbtn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+        .pinfo { color: #444; }
         @media (max-width: 900px) {
-          .toolbar { grid-template-columns: 1fr 120px 120px 110px 84px 84px; }
+          input[type="text"] { min-width: 160px; }
         }
       `}</style>
     </>
-  );
+  )
+}
+
+function PageLink(props: {
+  page: number
+  disabled?: boolean
+  label: string
+  q: string
+  theme: string
+  condition: string
+  inStock: boolean
+  limit: number
+}) {
+  const { page, disabled, label, q, theme, condition, inStock, limit } = props
+  const qs = new URLSearchParams()
+  qs.set('type', 'MINIFIG')
+  qs.set('page', String(page))
+  qs.set('limit', String(limit))
+  if (q) qs.set('q', q)
+  if (theme) qs.set('theme', theme)
+  if (condition) qs.set('condition', condition)
+  if (inStock) qs.set('inStock', '1')
+
+  return (
+    <Link className="pbtn" href={`/minifigs?${qs.toString()}`} aria-disabled={disabled ? 'true' : 'false'}>
+      {label}
+    </Link>
+  )
+}
+
+export const getServerSideProps: GetServerSideProps<Props> = async ({ query, req }) => {
+  const page = Math.max(1, parseInt((query.page as string) || '1', 10))
+  const limit = Math.min(60, Math.max(12, parseInt((query.limit as string) || '36', 10)))
+  const q = (query.q as string) || ''
+  const theme = (query.theme as string) || ''
+  const condition = (query.condition as string) || ''
+  const inStock = query.inStock === '1' || query.inStock === 'true'
+
+  const proto = (req.headers['x-forwarded-proto'] as string) || 'http'
+  const host = req.headers.host as string
+  const base = `${proto}://${host}`
+
+  // Build product query
+  const ps = new URLSearchParams()
+  ps.set('type', 'MINIFIG')
+  ps.set('page', String(page))
+  ps.set('limit', String(limit))
+  if (q) ps.set('q', q)
+  if (theme) ps.set('theme', theme)
+  if (condition) ps.set('condition', condition)
+  if (inStock) ps.set('inStock', '1')
+
+  const prodRes = await fetch(`${base}/api/products?${ps.toString()}`)
+  const prodJson = await prodRes.json().catch(() => ({} as any))
+  const items: Item[] = prodJson.items || prodJson.inventory || []
+  const count: number = pick<number>(prodJson.count, items.length)
+
+  // Themes for dropdown
+  const themesRes = await fetch(`${base}/api/themes`)
+  const themesJson = await themesRes.json().catch(() => ({} as any))
+  const themes: ThemeOpt[] =
+    themesJson.options ||
+    themesJson.themes ||
+    []
+
+  return {
+    props: {
+      items,
+      count,
+      page,
+      limit,
+      q,
+      theme,
+      condition,
+      inStock,
+      themes,
+    },
+  }
 }

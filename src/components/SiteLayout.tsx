@@ -1,30 +1,24 @@
-import s from './SiteLayout.module.css'
+// src/components/SiteLayout.tsx
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import s from './SiteLayout.module.css'
 
-type Props = { children: ReactNode }
-
-export default function SiteLayout({ children }: Props) {
-  // Show total MINIFIG count next to “Minifigs by Theme”
-  const [minifigCount, setMinifigCount] = useState<number | null>(null)
+export default function SiteLayout({ children }: { children: React.ReactNode }) {
+  const [miniCount, setMiniCount] = useState<number | null>(null)
 
   useEffect(() => {
     let alive = true
-    // Your /api/minifigs already returns { count, inventory: [] }
-    fetch('/api/minifigs?type=MINIFIG&limit=0')
-      .then(r => (r.ok ? r.json() : Promise.reject(r.statusText)))
-      .then(j => {
-        if (alive && typeof j?.count === 'number') setMinifigCount(j.count)
-      })
-      .catch(() => { /* ignore */ })
+    fetch('/api/minifigs?type=MINIFIG&limit=1')
+      .then(r => r.json())
+      .then(d => { if (alive) setMiniCount(typeof d.count === 'number' ? d.count : null) })
+      .catch(() => {})
     return () => { alive = false }
   }, [])
 
   return (
     <div className={s.shell}>
-      {/* Left stud rail (LOCKED) */}
+      {/* Left stud rail: single image, full height */}
       <div className={s.rail}>
         <Image
           src="/stud-rail.png"
@@ -46,13 +40,13 @@ export default function SiteLayout({ children }: Props) {
             <Link href="/">Home</Link>
             <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
             <Link href="/minifigs-by-theme">
-              Minifigs by Theme{minifigCount != null ? ` (${minifigCount})` : ''}
+              {`Minifigs by Theme${miniCount !== null ? ` (${miniCount})` : ''}`}
             </Link>
           </div>
         </nav>
       </header>
 
-      {/* Page content (LOCKED) */}
+      {/* Main */}
       <main className={s.main}>{children}</main>
 
       {/* Footer (LOCKED) */}
