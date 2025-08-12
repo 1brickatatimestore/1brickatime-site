@@ -7,4 +7,5 @@ dist
 _attic/
 backend/
 frontend/
-target/
+target//lib
+_attic/

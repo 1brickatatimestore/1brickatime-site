@@ -1,8 +1,16 @@
+<<<<<<< HEAD
 .wrap {
+=======
+/* CartBadge.module.css */
+/* self-contained; no globals or pseudo-element hacks */
+
+.cartBadge {
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+<<<<<<< HEAD
   text-decoration: none;
   padding: 4px;
   margin-left: 12px;
@@ -13,11 +21,25 @@
   height: 26px;
   display: inline-block;
   position: relative;
+=======
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cartBadge:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 2px;
+  border-radius: 9999px;
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
 }
 
 .count {
   position: absolute;
   top: -6px;
+<<<<<<< HEAD
   right: -8px;
   min-width: 18px;
   height: 18px;
@@ -36,4 +58,30 @@
 /* Hide bubble when empty */
 .count[data-empty="1"] {
   display: none;
+=======
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: #1a73e8;
+  color: #fff;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  transform: scale(var(--scale, 1));
+  transform-origin: 100% 0%;
+  transition: transform 180ms ease;
+  z-index: 1;
+}
+
+.count[data-empty="1"] {
+  --scale: 0; /* visually hide when empty without changing DOM */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .count { transition: none; }
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
 }

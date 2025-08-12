@@ -8,7 +8,11 @@ function mask(v?: string, keep = 4) {
 
 export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
   try {
+<<<<<<< HEAD
     const siteUrl = process. PAYPAL_CLIENT_SECRET_REDACTED|| null
+=======
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || null
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
     const currency = process.env.CURRENCY || 'AUD'
 
     const stripePub = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
