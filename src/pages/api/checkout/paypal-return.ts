@@ -1,5 +1,16 @@
-// src/pages/api/checkout/paypal-capture.ts
+// src/pages/api/checkout/paypal-return.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
+
+function getSiteUrl(req: NextApiRequest) {
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
+  if (envUrl) return envUrl.replace(/\/+$/, '')
+  const proto =
+    (req.headers['x-forwarded-proto'] as string) ||
+    (req.headers['x-forwarded-protocol'] as string) ||
+    'http'
+  const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || 'localhost:3000'
+  return `${proto}://${host}`.replace(/\/+$/, '')
+}
 
 function getPaypalBase() {
   const env = (process.env.PAYPAL_ENV || 'live').toLowerCase()
@@ -31,32 +42,52 @@ async function getAccessToken() {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
+  if (req.method !== 'GET') return res.status(405).end('Method Not Allowed')
 
+  const site = getSiteUrl(req)
   try {
-    const orderId = (req.query.orderId as string) || (req.body?.orderId as string)
-    if (!orderId) return res.status(400).json({ error: 'missing_orderId' })
+    // PayPal sends ?token=EC-... which is the order id for v2/checkout/orders
+    const orderId =
+      (req.query.token as string) ||
+      (req.query.orderId as string) ||
+      ''
+
+    if (!orderId) {
+      return res.redirect(
+        302,
+        `${site}/checkout?error=missing_order_id`
+      )
+    }
 
     const access = await getAccessToken()
     const { api } = getPaypalBase()
 
+    // Capture immediately on return
     const capRes = await fetch(`${api}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${access}`,
         'Content-Type': 'application/json',
-        'PayPal-Request-Id': `cap-${Date.now()}`, // idempotency
+        'PayPal-Request-Id': `cap-${Date.now()}`,
       },
     })
 
     const json = await capRes.json().catch(() => ({}))
     if (!capRes.ok) {
-      return res.status(500).json({ error: 'paypal_capture_failed', status: capRes.status, details: json })
+      // Send them back to checkout with an error + order id so you can retry
+      return res.redirect(
+        302,
+        `${site}/checkout?error=paypal_capture_failed&orderId=${encodeURIComponent(orderId)}`
+      )
     }
 
-    return res.status(200).json({ ok: true, orderId, result: json })
+    // Success → Thank you page
+    return res.redirect(
+      302,
+      `${site}/thank-you?provider=paypal&orderId=${encodeURIComponent(orderId)}`
+    )
   } catch (err: any) {
-    console.error('paypal-capture error:', err?.message || err)
-    return res.status(500).json({ error: 'fatal', message: err?.message || 'Unknown error' })
+    console.error('paypal-return error:', err?.message || err)
+    return res.redirect(302, `${site}/checkout?error=paypal_return_fatal`)
   }
 }
