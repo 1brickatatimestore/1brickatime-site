@@ -1,192 +1,139 @@
-// src/pages/minifig/[id].tsx
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
-import type { GetServerSideProps } from 'next'
 import dbConnect from '@/lib/db'
 import Product from '@/models/Product'
-import { decode } from 'html-entities'
+import { GetServerSideProps } from 'next'
+import { useCart } from '@/context/CartContext'
+import { useState } from 'react'
 
-type Item = {
-  _id?: string
+type P = {
+  _id: string
   inventoryId: number
   itemNo: string | null
   name: string | null
   price: number | null
-  qty: number | null
   imageUrl: string | null
-  description: string | null
-  remarks: string | null
   condition: string | null
-  createdAt?: string
-  updatedAt?: string
+  remarks: string | null
+  description: string | null
 }
 
-type Props = { item: Item }
-
-export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
-  const raw = ctx.params?.id
-  const invId = Number(raw)
-  if (!Number.isFinite(invId)) return { notFound: true }
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const id = ctx.params?.id as string
+  if (!id) return { notFound: true }
 
   await dbConnect(process.env.MONGODB_URI!)
+  const doc = await Product.findOne({ inventoryId: Number(id) }).lean()
 
-  // @ts-ignore lean() returns plain object
-  const doc = await Product.findOne({ inventoryId: invId }).lean()
   if (!doc) return { notFound: true }
 
-  const item: Item = {
-    _id: doc._id?.toString?.() ?? null,
-    inventoryId: doc.inventoryId ?? invId,
+  const p: P = {
+    _id: String(doc._id),
+    inventoryId: doc.inventoryId ?? 0,
     itemNo: doc.itemNo ?? null,
     name: doc.name ?? null,
     price: doc.price ?? null,
-    qty: doc.qty ?? null,
     imageUrl: doc.imageUrl ?? null,
-    description: doc.description ?? null,
-    remarks: doc.remarks ?? null,
     condition: doc.condition ?? null,
-    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : undefined,
-    updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : undefined,
+    remarks: doc.remarks ?? null,
+    description: doc.description ?? null,
   }
 
-  return { props: { item } }
+  return { props: { p } }
 }
 
-export default function MinifigDetail({ item }: Props) {
-  const title = decode(item.name || item.itemNo || 'Minifig')
-  const shopLink = item.itemNo
-    ? `https://store.bricklink.com/1brickatatime#/shop?searchTerm=${encodeURIComponent(item.itemNo)}`
-    : 'https://store.bricklink.com/1brickatatime.#/shop'
+export default function MinifigDetail({ p }: { p: P }) {
+  const { addItem } = useCart()
+  const [qty, setQty] = useState(1)
+
+  const title = p.name ? `${p.name} – ${p.itemNo ?? ''}` : (p.itemNo ?? 'Minifig')
 
   return (
     <>
       <Head>
-        <title>{`${title} — Minifig`}</title>
-        <meta name="description" content={`Minifig ${title}.`} />
-        <link rel="canonical" href={`/minifig/${item.inventoryId}`} />
-        <script
-          type="application/ld+json"
-          // simple JSON-LD for product
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'Product',
-              name: title,
-              sku: item.itemNo || undefined,
-              image: item.imageUrl || undefined,
-              offers:
-                typeof item.price === 'number'
-                  ? {
-                      '@type': 'Offer',
-                      priceCurrency: 'USD',
-                      price: item.price.toFixed(2),
-                      availability:
-                        typeof item.qty === 'number' && item.qty > 0
-                          ? 'https://schema.org/InStock'
-                          : 'https://schema.org/OutOfStock',
-                    }
-                  : undefined,
-            }),
-          }}
-        />
+        <title>{title}</title>
       </Head>
 
-      <main style={{ maxWidth: 980, margin: '0 auto', padding: 20 }}>
-        <Link href={`/minifigs?type=MINIFIG&limit=36`}>&laquo; Back to Minifigs</Link>
+      <div style={{ display:'grid', gridTemplateColumns:'320px 1fr', gap:24, alignItems:'start' }}>
+        <div style={{
+          position:'relative', width:320, height:320,
+          borderRadius:12, background:'#fff', boxShadow:'0 2px 8px rgba(0,0,0,.08)',
+          display:'grid', placeItems:'center'
+        }}>
+          {p.imageUrl ? (
+            <Image
+              src={p.imageUrl}
+              alt={p.name || p.itemNo || 'Minifig'}
+              fill
+              sizes="320px"
+              style={{ objectFit:'contain' }}
+            />
+          ) : (
+            <div style={{ color:'#999' }}>No image</div>
+          )}
+        </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '360px 1fr',
-            gap: 24,
-            alignItems: 'start',
-            marginTop: 16,
-          }}
-        >
-          <div
-            style={{
-              background: '#fff',
-              border: '1px solid #e7e7e7',
-              borderRadius: 12,
-              padding: 12,
-              boxShadow: '0 1px 3px rgba(0,0,0,.05)',
-            }}
-          >
-            <div
+        <div>
+          <h1 style={{ margin:'0 0 6px', fontSize:28 }}>{p.name || p.itemNo}</h1>
+          <div style={{ margin:'0 0 16px', color:'#555' }}>{p.itemNo}</div>
+
+          <div style={{ display:'flex', gap:12, alignItems:'center', margin:'0 0 18px' }}>
+            <div style={{ fontSize:24, fontWeight:800 }}>
+              {p.price != null ? `$${p.price.toFixed(2)}` : 'Price TBA'}
+            </div>
+            {p.condition && (
+              <span style={{ padding:'4px 8px', border:'1px solid #999', borderRadius:6 }}>
+                {p.condition === 'N' ? 'New' : p.condition === 'U' ? 'Used' : p.condition}
+              </span>
+            )}
+            {p.remarks && (
+              <span style={{ color:'#777' }}>Ref: {p.remarks}</span>
+            )}
+          </div>
+
+          {p.description && (
+            <p style={{ margin:'0 0 18px', maxWidth:700 }}>{p.description}</p>
+          )}
+
+          <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8 }}>
+              Qty
+              <input
+                type="number"
+                min={1}
+                value={qty}
+                onChange={e => setQty(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                style={{ width:70, padding:'8px 10px', borderRadius:8, border:'1px solid #bbb' }}
+              />
+            </label>
+
+            <button
+              onClick={() => addItem({
+                id: String(p.inventoryId),
+                itemNo: p.itemNo,
+                name: p.name,
+                price: p.price ?? 0,
+                imageUrl: p.imageUrl
+              }, qty)}
               style={{
-                width: '100%',
-                aspectRatio: '1 / 1',
-                position: 'relative',
-                overflow: 'hidden',
-                background: '#fafafa',
-                borderRadius: 10,
-                display: 'grid',
-                placeItems: 'center',
+                background:'#e1b946', border:'2px solid #a2801a', color:'#1a1a1a',
+                fontWeight:800, padding:'10px 16px', borderRadius:8, cursor:'pointer'
               }}
             >
-              <Image
-                src={item.imageUrl || '/file.svg'}
-                alt={title}
-                width={800}
-                height={800}
-                sizes="(max-width: 900px) 90vw, 360px"
-                style={{ objectFit: 'contain' }} // show full minifig
-                priority
-              />
-            </div>
+              Add to Cart
+            </button>
+
+            <Link href="/checkout" style={{
+              padding:'10px 16px', border:'2px solid #204d69', borderRadius:8, color:'#204d69', fontWeight:700
+            }}>Go to Checkout</Link>
           </div>
 
-          <div>
-            <h1 style={{ margin: '4px 0 10px', fontSize: 28 }}>{title}</h1>
-
-            <div style={{ display: 'flex', gap: 12, marginBottom: 10, color: '#333' }}>
-              {item.itemNo ? <span>SKU: {item.itemNo}</span> : null}
-              {typeof item.qty === 'number' ? <span>Qty: {item.qty}</span> : null}
-              {item.condition ? <span>Cond: {item.condition}</span> : null}
-            </div>
-
-            {typeof item.price === 'number' ? (
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#204d69', marginBottom: 14 }}>
-                ${item.price.toFixed(2)}
-              </div>
-            ) : null}
-
-            <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
-              <a
-                href={shopLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  background: '#e1b946',
-                  border: '2px solid #a2801a',
-                  padding: '10px 16px',
-                  borderRadius: 8,
-                  fontWeight: 700,
-                  color: '#1a1a1a',
-                }}
-              >
-                Buy on Bricklink
-              </a>
-              <Link
-                href="/minifigs?type=MINIFIG&limit=36"
-                style={{
-                  border: '2px solid #204d69',
-                  padding: '10px 16px',
-                  borderRadius: 8,
-                  color: '#204d69',
-                  fontWeight: 600,
-                }}
-              >
-                See All Items
-              </Link>
-            </div>
-
-            {item.description ? <p style={{ margin: '0 0 8px' }}>{item.description}</p> : null}
-            {item.remarks ? <p style={{ margin: 0, color: '#444' }}>Remarks: {item.remarks}</p> : null}
+          <div style={{ marginTop:24 }}>
+            <Link href={`/minifigs?type=MINIFIG&limit=36`}>← Back to Minifigs</Link>
           </div>
         </div>
-      </main>
+      </div>
     </>
   )
 }
