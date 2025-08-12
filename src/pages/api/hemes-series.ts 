@@ -1,0 +1,44 @@
+import type { NextApiRequest, NextApiResponse } from 'next'
+
+/**
+ * Returns live counts for Collectible Minifigures series.
+ * We DO NOT touch your existing /api/themes. This endpoint just augments it.
+ *
+ * Response:
+ * { series: [{ value: "1", label: "Series 1", count: 22 }, ... ] }
+ */
+
+// Keep this list short & sensible. Add more if you stock them.
+const SERIES_LIST = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+]
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const host = req.headers.host || 'localhost:3000'
+    const proto = (req.headers['x-forwarded-proto'] as string) || 'http'
+
+    // Ask your existing /api/products for each series (theme=collectible-minifigures)
+    const promises = SERIES_LIST.map(async (n) => {
+      const url = `${proto}://${host}/api/products?type=MINIFIG&theme=collectible-minifigures&series=${n}&limit=1`
+      try {
+        const r = await fetch(url)
+        if (!r.ok) return null
+        const data = await r.json()
+        const count = Number(data.count ?? 0)
+        if (count <= 0) return null
+        return { value: String(n), label: `Series ${n}`, count }
+      } catch {
+        return null
+      }
+    })
+
+    const results = await Promise.all(promises)
+    const series = results.filter(Boolean) as Array<{ value: string; label: string; count: number }>
+
+    res.status(200).json({ series })
+  } catch (err) {
+    res.status(200).json({ series: [] })
+  }
+}
