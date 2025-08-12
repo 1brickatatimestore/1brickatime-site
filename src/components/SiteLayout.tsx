@@ -1,46 +1,26 @@
-import s from './SiteLayout.module.css'
-import Image from 'next/image'
-import Link from 'next/link'
-import type { ReactNode } from 'react'
+import React, { ReactNode } from 'react'
+import CartBadge from './CartBadge'
 
-type Props = { children: ReactNode }
+interface LayoutProps {
+  children: ReactNode
+}
 
-export default function SiteLayout({ children }: Props) {
+const SiteLayout = ({ children }: LayoutProps) => {
   return (
-    <div className={s.shell}>
-      {/* Left stud rail (locked) */}
-      <div className={s.rail} aria-hidden="true" />
-
-      {/* Header (locked) */}
-      <header className={s.header}>
-        <nav className={s.nav}>
-          <div className={s.brand}>
-            <Image src="/logo.png" alt="" width={28} height={28} priority />
-            <span>1 Brick at a Time</span>
-          </div>
-          <div className={s.links}>
-            <Link href="/">Home</Link>
-            <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
-            <Link href="/minifigs-by-theme">Minifigs by Theme</Link>
-          </div>
-        </nav>
-      </header>
-
-      {/* Main */}
-      <main className={s.main}>{children}</main>
-
-      {/* Footer (locked) */}
-      <footer className={s.footer}>
-        <Image
-          src="/footer-banner.png"
-          alt="Build alongside us!"
-          className={s.footerImg}
-          width={2400}
-          height={180}
-          sizes="100vw"
-          priority
-        />
-      </footer>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <aside style={{ width: '64px', background: '#1f5376' }}>Rail</aside>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <header style={{ background: '#204d69', padding: '16px', color: '#fff' }}>
+          <h1>1 Brick at a Time</h1>
+          <CartBadge />
+        </header>
+        <main style={{ flex: 1, padding: '16px' }}>{children}</main>
+        <footer style={{ background: '#204d69', padding: '16px', color: '#fff', textAlign: 'center' }}>
+          © 2025 1 Brick at a Time
+        </footer>
+      </div>
     </div>
   )
 }
+
+export default SiteLayout
