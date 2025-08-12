@@ -1,174 +1,149 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '../../lib/db'              // <-- if your file is dbConnect.ts, create db.ts that re-exports it
-import Product from '../../models/Product'
-
-type Option = { key: string; label: string; count: number }
+import dbConnect from '@/lib/dbConnect'
+import Product from '@/models/Product'
 
 /**
- * Map BrickLink-ish prefixes to our canonical “theme keys”.
- * Multiple prefixes can collapse to the same theme (your rule:
- * “collapse sub-themes into the main theme”).
+ * We compute live counts for themes + CMF series.
+ * Counts respect: type=MINIFIG, cond=N|U, onlyInStock=1, q=search text (optional)
+ *
+ * Response:
+ * {
+ *   options: [{ key, label, count }...],  // theme options with counts
+ *   series:  [{ n, key, label, count }...] // CMF series options with counts
+ * }
  */
-const PREFIX_TO_THEME: Record<string, { key: string; label: string }> = {
-  // Big ones
-  sw:   { key: 'star-wars',               label: 'Star Wars' },
-  hp:   { key: 'harry-potter',            label: 'Harry Potter' },
-  njo:  { key: 'ninjago',                 label: 'Ninjago' },
-  ninjago: { key: 'ninjago',              label: 'Ninjago' },
-  jw:   { key: 'jurassic-world',          label: 'Jurassic World' },
-  tlm:  { key: 'the-lego-movie',          label: 'The LEGO Movie' },
 
-  // City / Town family
-  cty:  { key: 'city',                    label: 'City' },
-  twn:  { key: 'city',                    label: 'City' },
-  air:  { key: 'city',                    label: 'City' }, // airport subline – fold into City
-  cop:  { key: 'city',                    label: 'City' }, // police subline – fold into City
+type Opt = { key: string; label: string; count: number }
+type SeriesOpt = { n: number; key: string; label: string; count: number }
 
-  // Other named lines seen in your data/debug
-  sc:   { key: 'speed-champions',         label: 'Speed Champions' },
-  sp:   { key: 'space',                   label: 'Space' },
-  trn:  { key: 'trains',                  label: 'Trains' },
-  poc:  { key: 'pirates-of-the-caribbean',label: 'Pirates of the Caribbean' },
-  pi:   { key: 'pirates',                 label: 'Pirates' },
-  gs:   { key: 'ghostbusters',            label: 'Ghostbusters' },
-  sim:  { key: 'the-simpsons',            label: 'The Simpsons' },
-  toy:  { key: 'toy-story',               label: 'Toy Story' },
-  bob:  { key: 'spongebob-squarepants',   label: 'SpongeBob SquarePants' },
-  hs:   { key: 'hidden-side',             label: 'Hidden Side' },
-  iaj:  { key: 'indiana-jones',           label: 'Indiana Jones' },
-  loc:  { key: 'legends-of-chima',        label: 'Legends of Chima' },
-  uagt: { key: 'ultra-agents',            label: 'Ultra Agents' },
-  nex:  { key: 'nexo-knights',            label: 'Nexo Knights' },
-  atl:  { key: 'atlantis',                label: 'Atlantis' },
-  vid:  { key: 'vidiyo',                  label: 'VIDIYO' },
-  min:  { key: 'minions',                 label: 'Minions' },
-  idea: { key: 'ideas',                   label: 'Ideas' },
-  rac:  { key: 'racers',                  label: 'Racers' },
-  mof:  { key: 'monster-fighters',        label: 'Monster Fighters' },
-  dim:  { key: 'lego-dimensions',         label: 'LEGO Dimensions' },
-  cas:  { key: 'castle',                  label: 'Castle' },
-  adv:  { key: 'adventurers',             label: 'Adventurers' },
-  adp:  { key: 'adventurers',             label: 'Adventurers' },
+const THEMES_ORDER: { key: string; label: string; rx: RegExp[] }[] = [
+  { key: 'adventurers',           label: 'Adventurers',           rx: [/adventurer/i] },
+  { key: 'atlantis',              label: 'Atlantis',              rx: [/atlantis/i] },
+  { key: 'castle',                label: 'Castle',                rx: [/castle|king|knight/i] },
+  { key: 'city',                  label: 'City',                  rx: [/^cty|city/i] },
+  { key: 'collectible-minifigures', label: 'Collectible Minifigures', rx: [/^col/i, /Series\s+\d+/i] },
+  { key: 'ghostbusters',          label: 'Ghostbusters',          rx: [/ghostbusters?/i] },
+  { key: 'harry-potter',          label: 'Harry Potter',          rx: [/harry\s*potter|hp\s*\d+/i] },
+  { key: 'hidden-side',           label: 'Hidden Side',           rx: [/hidden\s*side/i] },
+  { key: 'ideas',                 label: 'Ideas',                 rx: [/ideas/i] },
+  { key: 'indiana-jones',         label: 'Indiana Jones',         rx: [/indiana\s*jones|ij\d+/i] },
+  { key: 'jurassic-world',        label: 'Jurassic World',        rx: [/jurassic|jw\d+/i] },
+  { key: 'legends-of-chima',      label: 'Legends of Chima',      rx: [/chima/i] },
+  { key: 'lego-dimensions',       label: 'LEGO Dimensions',       rx: [/dimensions?/i] },
+  { key: 'minions',               label: 'Minions',               rx: [/minions?/i] },
+  { key: 'monster-fighters',      label: 'Monster Fighters',      rx: [/monster\s*fighters?/i] },
+  { key: 'nexo-knights',          label: 'Nexo Knights',          rx: [/nexo\s*knights?/i] },
+  { key: 'ninjago',               label: 'Ninjago',               rx: [/ninjago|njo/i] },
+  { key: 'pirates',               label: 'Pirates',               rx: [/^pi|pirates(?!.*caribbean)/i] },
+  { key: 'pirates-of-the-caribbean', label: 'Pirates of the Caribbean', rx: [/caribbean|potc/i] },
+  { key: 'racers',                label: 'Racers',                rx: [/racers?/i] },
+  { key: 'space',                 label: 'Space',                 rx: [/space(?!.*police)/i] },
+  { key: 'speed-champions',       label: 'Speed Champions',       rx: [/speed\s*champions?/i] },
+  { key: 'star-wars',             label: 'Star Wars',             rx: [/^sw|star\s*wars/i] },
+  { key: 'the-lego-movie',        label: 'The LEGO Movie',        rx: [/lego\s*movie|tlm/i] },
+  { key: 'the-simpsons',          label: 'The Simpsons',          rx: [/simpsons?/i] },
+  { key: 'toy-story',             label: 'Toy Story',             rx: [/toy\s*story/i] },
+  { key: 'trains',                label: 'Trains',                rx: [/trains?/i] },
+  { key: 'ultra-agents',          label: 'Ultra Agents',          rx: [/ultra\s*agents?/i] },
+  { key: 'vidiyo',                label: 'VIDIYO',                rx: [/vidiyo/i] },
+  // Always keep "Other (Singles)" last
+]
 
-  // Some BrickHeadz/Generic catch-alls people sometimes have (guarded)
-  gen:  { key: 'other',                   label: 'Other (Singles)' }, // generic/unknown → will be re-bucketed anyway
+const OTHER_KEY = 'other'
+const OTHER_LABEL = 'Other (Singles)'
+
+function themeKeyFor(doc: any): string {
+  const itemNo: string = String(doc.itemNo || '')
+  const name: string = String(doc.name || '')
+  for (const t of THEMES_ORDER) {
+    if (t.rx.some(r => r.test(itemNo) || r.test(name))) return t.key
+  }
+  return OTHER_KEY
 }
 
-/** CMF named sub-series codes commonly found in inventories */
-const CMF_NAMED: Record<string, string> = {
-  ma:  'Marvel',
-  dc:  'DC',
-  hp:  'Harry Potter',
-  dis: 'Disney',
-  tl:  'The LEGO Movie',
-  tlm: 'The LEGO Movie',
-  mu:  'Muppets',
-  lo:  'Looney Tunes',
-  nin: 'Ninjago',
-  sim: 'The Simpsons',
+function themeLabelFromKey(key: string): string {
+  const t = THEMES_ORDER.find(t => t.key === key)
+  return t ? t.label : OTHER_LABEL
 }
 
-/** classify a single itemNo into either a theme or CMF series */
-function classify(itemNo: string) {
-  const s = (itemNo || '').toLowerCase()
-
-  // CMF (Collectible Minifigures) always start with 'col'
-  if (s.startsWith('col')) {
-    // Try numeric series e.g. col001, col010, col20...
-    const mNum = s.match(/^col0*([0-9]+)/)
-    if (mNum) {
-      const n = mNum[1].replace(/^0+/, '') || '0'
-      return { themeKey: 'collectible-minifigures', seriesKey: `cmf-series-${n}`, seriesLabel: `Collectible Minifigures — Series ${n}` }
-    }
-
-    // Named CMF lines like colma (Marvel), colhp (Harry Potter), coltl (TLM)
-    const mNamed = s.match(/^col([a-z]+)/)
-    if (mNamed) {
-      const code = mNamed[1]
-      // collapse known aliases (e.g., 'tl' / 'tlm' both → TLM)
-      let name = CMF_NAMED[code] || code.toUpperCase()
-      return { themeKey: 'collectible-minifigures', seriesKey: `cmf-series-${code}`, seriesLabel: `Collectible Minifigures — ${name}` }
-    }
-
-    // Default CMF bucket
-    return { themeKey: 'collectible-minifigures' }
-  }
-
-  // Non-CMF: pick letters until a digit
-  const m = s.match(/^[a-z]+/)
-  const prefix = m ? m[0] : ''
-  if (prefix && PREFIX_TO_THEME[prefix]) {
-    const t = PREFIX_TO_THEME[prefix]
-    return { themeKey: t.key }
-  }
-
-  // Unknown → will likely end up in Others based on your rule
-  return { themeKey: 'other' }
+function extractSeriesNumber(doc: any): number | null {
+  const name: string = String(doc.name || '')
+  // "Series 7", "Series 20", etc.
+  const m = name.match(/Series\s+(\d{1,3})/i)
+  if (m) return Number(m[1])
+  return null
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  await dbConnect()
+  try {
+    await dbConnect(process.env.MONGODB_URI!)
 
-  // We only need itemNo for building theme counts
-  const rows = await Product.find({ type: 'MINIFIG' }).select({ itemNo: 1 }).lean()
+    const { type = 'MINIFIG', cond, onlyInStock, q } = req.query as Record<string, string>
+    const stock = onlyInStock === '1' || onlyInStock === 'true'
 
-  const counts = new Map<string, { label: string; count: number }>()
-  const cmfSeries = new Map<string, { label: string; count: number }>()
-  let cmfTotal = 0
-
-  const bump = (key: string, label: string, map: Map<string, { label: string; count: number }>) => {
-    const v = map.get(key)
-    if (v) v.count++
-    else map.set(key, { label, count: 1 })
-  }
-
-  for (const r of rows) {
-    const it = (r as any).itemNo || ''
-    const { themeKey, seriesKey, seriesLabel } = classify(it)
-
-    if (themeKey === 'collectible-minifigures') {
-      cmfTotal++
-      if (seriesKey && seriesLabel) bump(seriesKey, seriesLabel, cmfSeries)
-      continue
+    const match: any = {}
+    if (type) match.type = type
+    if (cond === 'N' || cond === 'U') match.condition = cond
+    if (stock) match.qty = { $gt: 0 }
+    if (q && q.trim()) {
+      match.$or = [
+        { name:   { $regex: q.trim(), $options: 'i' } },
+        { itemNo: { $regex: q.trim(), $options: 'i' } },
+      ]
     }
 
-    // Resolve final label for this themeKey
-    let label = ''
-    for (const k in PREFIX_TO_THEME) {
-      if (PREFIX_TO_THEME[k].key === themeKey) { label = PREFIX_TO_THEME[k].label; break }
+    // Pull a lightweight projection so this stays quick.
+    const docs = await Product.find(match, { name: 1, itemNo: 1, qty: 1 }).lean()
+
+    // Theme counts
+    const counts = new Map<string, number>()
+    for (const d of docs) {
+      const key = themeKeyFor(d)
+      counts.set(key, (counts.get(key) || 0) + 1)
     }
-    if (!label) label = themeKey === 'other' ? 'Other (Singles)' : themeKey.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
-    bump(themeKey, label, counts)
+    // Build options in your preferred order (alphabetical, with “Other” last)
+    const sortedKeys = [
+      ...THEMES_ORDER.map(t => t.key),
+      OTHER_KEY,
+    ].filter((k, i, arr) => arr.indexOf(k) === i) // unique
+
+    const options: Opt[] = []
+    for (const key of sortedKeys) {
+      const count = counts.get(key) || 0
+      if (count > 0) {
+        options.push({ key, label: themeLabelFromKey(key), count })
+      }
+    }
+
+    // Series counts (only among CMF)
+    const seriesMap = new Map<number, number>()
+    for (const d of docs) {
+      const key = themeKeyFor(d)
+      if (key !== 'collectible-minifigures') continue
+      const n = extractSeriesNumber(d)
+      if (n != null) seriesMap.set(n, (seriesMap.get(n) || 0) + 1)
+    }
+
+    const series: SeriesOpt[] =
+      Array.from(seriesMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([n, count]) => ({
+          n,
+          key: `series-${n}`,
+          label: `Series ${n}`,
+          count,
+        }))
+
+    // Always append the "Other (Singles)" option last if present in counts
+    const otherCount = counts.get(OTHER_KEY) || 0
+    if (!options.find(o => o.key === OTHER_KEY) && otherCount > 0) {
+      options.push({ key: OTHER_KEY, label: OTHER_LABEL, count: otherCount })
+    }
+
+    res.status(200).json({ options, series })
+  } catch (err: any) {
+    console.error('themes endpoint failed:', err)
+    res.status(500).json({ error: 'themes_failed', message: String(err?.message || err) })
   }
-
-  // Apply your rule: any theme with only 1 figure → bundle into “Other (Singles)”
-  let otherSingles = 0
-  const finalThemes: Option[] = []
-  for (const [key, v] of counts.entries()) {
-    if (key === 'other') { otherSingles += v.count; continue }
-    if (v.count <= 1) { otherSingles += v.count; continue }
-    finalThemes.push({ key, label: v.label, count: v.count })
-  }
-  if (otherSingles > 0) {
-    finalThemes.push({ key: 'other', label: 'Other (Singles)', count: otherSingles })
-  }
-
-  // Add the top-level CMF theme (sum of all CMF items)
-  if (cmfTotal > 0) {
-    finalThemes.push({ key: 'collectible-minifigures', label: 'Collectible Minifigures', count: cmfTotal })
-  }
-
-  // Flatten series as additional options (so UI can show a second dropdown)
-  const seriesOptions: Option[] = []
-  for (const [key, v] of cmfSeries.entries()) {
-    seriesOptions.push({ key, label: v.label, count: v.count })
-  }
-
-  // Sort alphabetically by label (Collectibles can sit in the C’s naturally).
-  const byLabel = (a: Option, b: Option) => a.label.localeCompare(b.label)
-  finalThemes.sort(byLabel)
-  seriesOptions.sort(byLabel)
-
-  return res.status(200).json({ options: finalThemes, series: seriesOptions })
 }
