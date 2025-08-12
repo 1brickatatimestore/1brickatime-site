@@ -1,49 +1,39 @@
-/* CartBadge.module.css */
-/* self-contained; no globals or pseudo-element hacks */
-
-.cartBadge {
+.wrap {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 9999px;
   text-decoration: none;
-  color: inherit;
+  padding: 4px;
+  margin-left: 12px;
 }
 
-.cartBadge:focus-visible {
-  outline: 2px solid #1a73e8;
-  outline-offset: 2px;
-  border-radius: 9999px;
+.icon {
+  width: 26px;
+  height: 26px;
+  display: inline-block;
+  position: relative;
 }
 
 .count {
   position: absolute;
   top: -6px;
-  right: -6px;
+  right: -8px;
   min-width: 18px;
   height: 18px;
-  padding: 0 4px;
-  border-radius: 9999px;
-  background: #1a73e8;
-  color: #fff;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
-  font-weight: 600;
+  padding: 0 5px;
+  border-radius: 9px;
   font-size: 11px;
   line-height: 18px;
   text-align: center;
-  transform: scale(var(--scale, 1));
-  transform-origin: 100% 0%;
-  transition: transform 180ms ease;
-  z-index: 1;
+  background: #e1b946; /* your yellow */
+  border: 2px solid #a2801a;
+  color: #1a1a1a;
+  font-weight: 800;
+  user-select: none;
 }
 
+/* Hide bubble when empty */
 .count[data-empty="1"] {
-  --scale: 0; /* visually hide when empty without changing DOM */
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .count { transition: none; }
+  display: none;
 }
