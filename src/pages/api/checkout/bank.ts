@@ -1,39 +1,15 @@
-// src/pages/api/checkout/bank.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
-
-type Item = { sku: string; name: string; price: number; quantity: number }
+import type { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  if (req.method !== 'POST') return res.status(405).end();
 
-  const items: Item[] = Array.isArray(req.body?.items) ? req.body.items : []
-  if (!items.length) return res.status(400).json({ error: 'No items' })
+  // Example mock implementation for bank transfer
+  const { amount, orderId } = req.body;
 
-  const total = items.reduce((s, i) => s + (i.price || 0) * (i.quantity || 1), 0)
-
-  const orderId = `K${Date.now().toString(36).toUpperCase()}`
-
-  const bank = {
-<<<<<<< HEAD
-    name: process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
-    bsb: process.env.BANK_DEPOSIT_BSB || '',
-    account: process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
-    referenceHint: process. PAYPAL_CLIENT_SECRET_REDACTED|| 'Use your order number as reference',
-=======
-    name: process.env.BANK_DEPOSIT_NAME || '',
-    bsb: process.env.BANK_DEPOSIT_BSB || '',
-    account: process.env.BANK_DEPOSIT_ACCOUNT || '',
-    referenceHint: process.env.BANK_DEPOSIT_REFERENCE_HINT || 'Use your order number as reference',
->>>>>>> c2a3494 (Lock Minifigs page: filters + centered images)
+  if (!amount || !orderId) {
+    return res.status(400).json({ error: 'Missing amount or orderId' });
   }
 
-  return res.status(200).json({
-    orderId,
-    total: Number(total.toFixed(2)),
-    currency: 'AUD',
-    payBy: 'bank',
-    bank,
-    message:
-      'Please make a bank transfer using the details above. Your order will be held for 48 hours.',
-  })
+  // Normally, you would integrate with your banking API here
+  res.status(200).json({ ok: true, message: 'Bank transfer initiated' });
 }
