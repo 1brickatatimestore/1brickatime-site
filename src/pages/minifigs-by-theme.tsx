@@ -1,338 +1,204 @@
-// src/pages/minifigs-by-theme.tsx
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
-import { GetServerSideProps } from 'next'
+import { useRouter } from 'next/router'
+import { useEffect, useMemo, useState } from 'react'
 
-type Product = {
+type ThemeOpt = { key: string; label: string; count: number }
+type SeriesOpt = { key: string; label: string; count: number }
+type ThemesResp = { options: ThemeOpt[]; cmfSeries?: SeriesOpt[] }
+
+type Item = {
   _id?: string
   inventoryId?: number
-  name: string
   itemNo?: string
-  imageUrl: string
+  name?: string
   price?: number
-  qty?: number
+  imageUrl?: string
 }
 
-type GroupKey = 'main' | 'collectibles' | 'other' | null
-
-type ThemeOpt = {
-  value: string
-  label: string
-  count: number | null            // <— never undefined
-  group?: GroupKey
-}
-
-type Props = {
-  items: Product[]
+type PageProps = {
+  items: Item[]
   total: number
   page: number
   limit: number
-  onlyInStock: boolean
-  options: ThemeOpt[]
-  currentTheme: string
-  allCount: number
+  theme: string
+  series: string
+  inStock: boolean
+  themes: ThemesResp
 }
 
-function decodeHtml(s: string) {
-  if (!s) return ''
-  return s
-    .replaceAll('&amp;', '&')
-    .replaceAll('&#40;', '(')
-    .replaceAll('&#41;', ')')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-}
+const SITE =
+  process. PAYPAL_CLIENT_SECRET_REDACTED|| 'http://localhost:3000'
 
-const num = (n?: number) =>
-  typeof n === 'number' ? n.toLocaleString() : ''
+export default function ByThemePage(props: PageProps) {
+  const router = useRouter()
+  const [theme, setTheme] = useState(props.theme)
+  const [series, setSeries] = useState(props.series)
+  const [limit, setLimit] = useState(props.limit)
+  const [inStock, setInStock] = useState(props.inStock)
 
-export default function MinifigsByThemePage({
-  items,
-  total,
-  page,
-  limit,
-  onlyInStock,
-  options,
-  currentTheme,
-  allCount,
-}: Props) {
-  const pageCount = Math.max(1, Math.ceil(total / Math.max(1, limit)))
+  const isCMF = theme === 'collectible-minifigures'
+  const cmfSeries = props.themes.cmfSeries || []
 
-  const grouped = options.reduce(
-    (acc, o) => {
-      const g: Exclude<GroupKey, null> =
-        (o.group || 'main') as Exclude<GroupKey, null>
-      acc[g].push(o)
-      return acc
-    },
-    { main: [] as ThemeOpt[], collectibles: [] as ThemeOpt[], other: [] as ThemeOpt[] }
-  )
+  function apply() {
+    const query: Record<string, string> = {
+      limit: String(limit),
+      page: '1',
+      theme,
+    }
+    if (isCMF && series) query.series = series
+    if (inStock) query.inStock = '1'
+    router.push({ pathname: '/minifigs-by-theme', query })
+  }
+  function reset() {
+    router.push({ pathname: '/minifigs-by-theme', query: { limit: '36', page: '1' } })
+  }
+
+  const headerCount = useMemo(() => props.total ?? 0, [props.total])
 
   return (
     <>
       <Head>
-        <title>Minifigs by Theme ({num(allCount)})</title>
+        <title>Minifigs by Theme ({headerCount})</title>
       </Head>
 
-      <div className="wrap">
-        <h1>
-          Minifigs by Theme <span className="muted">({num(allCount)})</span>
-        </h1>
+      <h1 style={{ margin: '18px 0 14px' }}>
+        Minifigs by Theme <small style={{ fontWeight: 400, fontSize: 16 }}>({headerCount})</small>
+      </h1>
 
-        <form className="toolbar" method="get" action="/minifigs-by-theme">
-          <label>
-            Theme:{' '}
-            <select name="theme" defaultValue={currentTheme}>
-              <option value="">All Minifigs</option>
+      <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center', marginBottom: 12 }}>
+        <label style={{ display:'inline-flex', gap:6, alignItems:'center' }}>
+          Theme:
+          <select value={theme} onChange={(e)=>{ setTheme(e.target.value); setSeries('') }}>
+            <option value="">All Minifigs</option>
+            {props.themes.options
+              .slice()
+              .sort((a,b)=>a.label.localeCompare(b.label))
+              .map(o => (
+              <option key={o.key} value={o.key}>
+                {o.label} ({o.count})
+              </option>
+            ))}
+          </select>
+        </label>
 
-              {grouped.main.length > 0 && (
-                <optgroup label="Main themes">
-                  {grouped.main.map((o) => (
-                    <option key={`m-${o.value}`} value={o.value}>
-                      {o.label} {o.count !== null ? `— ${o.count}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-
-              {grouped.collectibles.length > 0 && (
-                <optgroup label="Collectible Minifigures">
-                  {grouped.collectibles.map((o) => (
-                    <option key={`c-${o.value}`} value={o.value}>
-                      {o.label} {o.count !== null ? `— ${o.count}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-
-              {grouped.other.length > 0 && (
-                <optgroup label="Other">
-                  {grouped.other.map((o) => (
-                    <option key={`o-${o.value}`} value={o.value}>
-                      {o.label} {o.count !== null ? `— ${o.count}` : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-          </label>
-
-          <label>
-            Per page:{' '}
-            <select name="limit" defaultValue={String(limit)}>
-              {[12, 24, 36, 48, 72].map((n) => (
-                <option key={n} value={n}>
-                  {n}
+        {isCMF && (
+          <label style={{ display:'inline-flex', gap:6, alignItems:'center' }}>
+            Series:
+            <select value={series} onChange={(e)=> setSeries(e.target.value)}>
+              <option value="">All</option>
+              {cmfSeries
+                .slice()
+                .sort((a,b)=>a.label.localeCompare(b.label))
+                .map(s=>(
+                <option key={s.key} value={s.key}>
+                  {s.label} ({s.count})
                 </option>
               ))}
             </select>
           </label>
+        )}
 
-          <label className="stock">
-            <input type="checkbox" name="stock" value="1" defaultChecked={onlyInStock} />{' '}
-            Only in stock
-          </label>
+        <label style={{ display:'inline-flex', gap:6, alignItems:'center', marginLeft: 'auto' }}>
+          Per page:
+          <select value={limit} onChange={(e)=> setLimit(Number(e.target.value))}>
+            {[12,24,36,48,72].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
 
-          <input type="hidden" name="page" value="1" />
-          <button type="submit" className="btn sm">Apply</button>
+        <label style={{ display:'inline-flex', alignItems:'center', gap:6 }}>
+          <input type="checkbox" checked={inStock} onChange={(e)=> setInStock(e.target.checked)} />
+          Only in stock
+        </label>
 
-          <Link href="/minifigs" className="allLink">All Minifigs</Link>
-        </form>
+        <button onClick={apply}>Apply</button>
+        <button onClick={reset} style={{ marginLeft: 4 }}>Reset</button>
 
-        <div className="grid">
-          {items.map((p) => (
-            <article
-              key={(p.inventoryId ?? p._id ?? Math.random()).toString()}
-              className="card"
-            >
-              <div className="imgBox">
-                {/* Image cropping fix: square, padded, contain */}
-                <Image
-                  src={p.imageUrl}
-                  alt={decodeHtml(p.name)}
-                  fill
-                  sizes="(max-width: 600px) 50vw, 220px"
-                  style={{ objectFit: 'contain' }}
-                />
-              </div>
-
-              <div className="meta">
-                <h3 className="name">{decodeHtml(p.name)}</h3>
-                <div className="row">
-                  <span className="code">{p.itemNo}</span>
-                  <span className="price">
-                    {typeof p.price === 'number' ? `$${p.price.toFixed(2)}` : ''}
-                  </span>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        <div className="pager">
-          <span>Page {num(page)} / {num(pageCount)}</span>
-          <div className="sp" />
-          <Pager page={page} pageCount={pageCount} limit={limit} theme={currentTheme} stock={onlyInStock} />
-        </div>
+        <Link href="/minifigs" style={{ marginLeft: 8 }}>All Minifigs</Link>
       </div>
 
-      <style jsx>{`
-        .wrap { max-width: 1100px; margin: 0 auto; padding: 16px 20px 120px; }
-        h1 { margin: 0 0 12px; font-size: 28px; line-height: 1.2; color: #1e2a32; }
-        .muted { color: #4e6370; font-weight: 600; }
-        .toolbar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; margin-bottom: 16px; font-size: 14px; }
-        select { padding: 6px 8px; border-radius: 8px; border: 1px solid #cbd5df; background: #fff; }
-        .stock { margin-left: 8px; }
-        .btn.sm { padding: 6px 10px; border: 1px solid #204d69; color: #204d69; background: #fff; border-radius: 8px; font-weight: 600; }
-        .allLink { margin-left: auto; color: #204d69; font-weight: 600; text-decoration: none; }
-        .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
-        @media (max-width: 1200px) { .grid { grid-template-columns: repeat(5, 1fr); } }
-        @media (max-width: 980px) { .grid { grid-template-columns: repeat(4, 1fr); } }
-        @media (max-width: 760px) { .grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 540px) { .grid { grid-template-columns: repeat(2, 1fr); } }
-        .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 10px rgba(0,0,0,.04); padding: 10px; display: flex; flex-direction: column; }
-        .imgBox { position: relative; aspect-ratio: 1 / 1; background: #fff; border-radius: 10px; overflow: hidden; padding: 8px; border: 1px solid rgba(0,0,0,.06); }
-        .meta { margin-top: 8px; }
-        .name { font-size: 14px; line-height: 1.25; margin: 0 0 6px; color: #1a1a1a; min-height: 34px; }
-        .row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-        .code { color: #6c7a86; font-size: 12px; }
-        .price { font-weight: 700; color: #0e3a53; }
-        .pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 18px 0 0; font-weight: 600; color: #294b5f; }
-        .sp { width: 10px; }
-        .pager a { border: 1px solid #b8c7d2; padding: 6px 10px; border-radius: 8px; text-decoration: none; color: #204d69; background: #fff; }
-        .pager a[aria-disabled='true'] { pointer-events: none; opacity: .45; }
-      `}</style>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))',
+          gap: 14
+        }}
+      >
+        {props.items.map((p) => (
+          <div key={(p._id || p.inventoryId || p.itemNo) as any}
+               style={{ background: '#fff', borderRadius: 10, border: '1px solid #e3ddd1' }}>
+            <div style={{ padding: 14 }}>
+              <div style={{
+                position: 'relative',
+                width: '100%', aspectRatio: '1 / 1',
+                background: '#f7f5f0', borderRadius: 8, overflow: 'hidden'
+              }}>
+                {p.imageUrl ? (
+                  <Image
+                    src={p.imageUrl}
+                    alt={p.name || p.itemNo || 'Minifig'}
+                    fill
+                    sizes="(max-width: 900px) 50vw, 240px"
+                    style={{ objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div style={{ display:'grid', placeItems:'center', height:'100%', color:'#98a' }}>
+                    No image
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 10, minHeight: 46, fontSize: 14, lineHeight: 1.3 }}>
+                {p.name || p.itemNo}
+              </div>
+
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop: 8 }}>
+                <span style={{ fontWeight: 700 }}>
+                  {typeof p.price === 'number' ? `$${p.price.toFixed(2)}` : '$0.00'}
+                </span>
+                <Link href={`/minifig/${p._id ?? p.inventoryId ?? p.itemNo}`} title="Details">Details</Link>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </>
   )
 }
 
-function Pager({
-  page,
-  pageCount,
-  limit,
-  theme,
-  stock,
-}: {
-  page: number
-  pageCount: number
-  limit: number
-  theme: string
-  stock: boolean
-}) {
-  const qp = (n: number) => {
-    const u = new URL('http://x/minifigs-by-theme')
-    if (theme) u.searchParams.set('theme', theme)
-    if (limit) u.searchParams.set('limit', String(limit))
-    if (stock) u.searchParams.set('stock', '1')
-    u.searchParams.set('page', String(n))
-    return u.search
-  }
-  const prev = Math.max(1, page - 1)
-  const next = Math.min(pageCount, page + 1)
-  return (
-    <>
-      <Link href={`/minifigs-by-theme${qp(1)}`} aria-disabled={page === 1}>« First</Link>
-      <Link href={`/minifigs-by-theme${qp(prev)}`} aria-disabled={page === 1}>‹ Prev</Link>
-      <Link href={`/minifigs-by-theme${qp(next)}`} aria-disabled={page === pageCount}>Next ›</Link>
-      <Link href={`/minifigs-by-theme${qp(pageCount)}`} aria-disabled={page === pageCount}>Last »</Link>
-    </>
-  )
-}
-
-export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
+export async function getServerSideProps(ctx: any) {
   const { query } = ctx
-  const page = Math.max(1, parseInt(String(query.page || '1'), 10) || 1)
-  const limit = Math.max(1, parseInt(String(query.limit || '36'), 10) || 36)
-  const onlyInStock = String(query.stock || '') === '1'
-  const currentTheme = String(query.theme || '')
+  const page = Math.max(1, parseInt(String(query.page || '1'), 10))
+  const limit = Math.min(72, Math.max(6, parseInt(String(query.limit || '36'), 10)))
+  const theme = String(query.theme || '')
+  const series = String(query.series || '')
+  const inStock = String(query.inStock || '') === '1'
 
-  const base =
-    process. PAYPAL_CLIENT_SECRET_REDACTED||
-    `http://localhost:${process.env.PORT || 3000}`
-
-  const getJson = async (url: string) => {
-    try {
-      const r = await fetch(url)
-      if (!r.ok) return null
-      return await r.json()
-    } catch {
-      return null
-    }
-  }
-
-  // themes
-  const themesJson = await getJson(`${base}/api/themes`)
-  let options: any[] = []
-  let allCount = 0
-
-  if (themesJson) {
-    if (Array.isArray(themesJson.options)) options = themesJson.options
-    else if (Array.isArray(themesJson)) options = themesJson
-
-    if (typeof themesJson?.allCount === 'number') allCount = themesJson.allCount
-    else if (typeof themesJson?.total === 'number') allCount = themesJson.total
-    else if (typeof themesJson?.count === 'number') allCount = themesJson.count
-  }
-
-  const ensure = (val: string, label: string, group: Exclude<GroupKey, null>) => {
-    if (!options.find((o) => o.value === val)) {
-      options.push({ value: val, label, group, count: null })
-    }
-  }
-  ensure('', 'All Minifigs', 'main')
-  ensure('collectibles', 'Collectible Minifigures', 'collectibles')
-  ensure('other', 'Other (Singles)', 'other')
-
-  // products
-  const qs = new URLSearchParams()
-  qs.set('type', 'MINIFIG')
-  qs.set('page', String(page))
-  qs.set('limit', String(limit))
-  if (onlyInStock) qs.set('stock', '1')
-  if (currentTheme) qs.set('theme', currentTheme)
-
-  const prodsJson = await getJson(`${base}/api/products?${qs.toString()}`)
-  const items: Product[] =
-    prodsJson?.items || prodsJson?.products || prodsJson?.data || []
-  const total =
-    typeof prodsJson?.total === 'number'
-      ? prodsJson.total
-      : Array.isArray(items)
-      ? items.length
-      : 0
-
-  if (!allCount) {
-    if (!currentTheme && typeof prodsJson?.grandTotal === 'number') allCount = prodsJson.grandTotal
-    else if (!currentTheme) allCount = total
-  }
-
-  // **Normalize options so NO property is undefined**
-  const normalizedOptions: ThemeOpt[] = (options || []).map((o) => {
-    const g: GroupKey =
-      typeof o.group === 'string'
-        ? (o.group as GroupKey)
-        : o.value === 'other'
-        ? 'other'
-        : null
-    return {
-      value: String(o.value ?? ''),
-      label: String(o.label ?? '').trim(),
-      count: typeof o.count === 'number' ? o.count : null, // <-- null, not undefined
-      group: g,                                           // <-- null allowed
-    }
+  const params = new URLSearchParams({
+    type: 'MINIFIG',
+    page: String(page),
+    limit: String(limit),
   })
+  if (theme) params.set('theme', theme)
+  if (series) params.set('series', series)
+  if (inStock) params.set('inStock', '1')
+
+  const base = SITE
+  const [themesRes, prodsRes] = await Promise.all([
+    fetch(`${base}/api/themes?includeSeries=1`),
+    fetch(`${base}/api/products?${params.toString()}`),
+  ])
+
+  const themes = await themesRes.json()
+  const data = await prodsRes.json()
 
   return {
     props: {
-      items,
-      total,
-      page,
-      limit,
-      onlyInStock,
-      options: normalizedOptions,
-      currentTheme,
-      allCount,
-    },
+      items: data.items ?? [],
+      total: data.total ?? 0,
+      page, limit, theme, series, inStock,
+      themes: themes as ThemesResp,
+    }
   }
 }

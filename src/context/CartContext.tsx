@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 
 export type CartItem = {
   id: string
@@ -8,59 +8,92 @@ export type CartItem = {
   imageUrl?: string
 }
 
-type CartContextShape = {
+type State = { items: CartItem[] }
+type Action =
+  | { type: 'ADD'; item: CartItem }
+  | { type: 'REMOVE'; id: string }
+  | { type: 'SET_QTY'; id: string; qty: number }
+  | { type: 'CLEAR' }
+
+const Ctx = createContext<{
   items: CartItem[]
-  addItem: (item: CartItem) => void
+  add: (item: CartItem) => void
   removeItem: (id: string) => void
   setQty: (id: string, qty: number) => void
-  clearCart: () => void
+  clear: () => void
   totalItems: number
-  subtotal: number
+  totalPrice: number
+} | null>(null)
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'ADD': {
+      const existing = state.items.find(i => i.id === action.item.id)
+      if (existing) {
+        return {
+          items: state.items.map(i =>
+            i.id === action.item.id ? { ...i, qty: i.qty + (action.item.qty || 1) } : i
+          ),
+        }
+      }
+      return { items: [...state.items, { ...action.item, qty: action.item.qty || 1 }] }
+    }
+    case 'REMOVE':
+      return { items: state.items.filter(i => i.id !== action.id) }
+    case 'SET_QTY':
+      return {
+        items: state.items.map(i => (i.id === action.id ? { ...i, qty: Math.max(0, action.qty) } : i)),
+      }
+    case 'CLEAR':
+      return { items: [] }
+    default:
+      return state
+  }
 }
 
-const Ctx = createContext<CartContextShape | null>(null)
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(reducer, { items: [] })
 
-const LS_KEY = 'cart.v1'
-
-export default function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([])
-
-  // load from localStorage once
+  // hydrate from localStorage (client only)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(LS_KEY)
-      if (raw) setItems(JSON.parse(raw))
+      const raw = localStorage.getItem('cart:v1')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed && Array.isArray(parsed.items)) {
+          dispatch({ type: 'CLEAR' })
+          for (const it of parsed.items) {
+            dispatch({ type: 'ADD', item: it })
+          }
+        }
+      }
     } catch {}
+    //  PAYPAL_CLIENT_SECRET_REDACTEDreact-hooks/exhaustive-deps
   }, [])
 
-  // persist
+  // persist to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(items))
+      localStorage.setItem('cart:v1', JSON.stringify({ items: state.items }))
     } catch {}
-  }, [items])
+  }, [state.items])
 
-  const addItem = (i: CartItem) => {
-    setItems(prev => {
-      const idx = prev.findIndex(p => p.id === i.id)
-      if (idx >= 0) {
-        const copy = [...prev]
-        copy[idx] = { ...copy[idx], qty: copy[idx].qty + (i.qty || 1) }
-        return copy
-      }
-      return [...prev, { ...i, qty: i.qty || 1 }]
-    })
-  }
+  const add = (item: CartItem) => dispatch({ type: 'ADD', item })
+  const removeItem = (id: string) => dispatch({ type: 'REMOVE', id })
+  const setQty = (id: string, qty: number) => dispatch({ type: 'SET_QTY', id, qty })
+  const clear = () => dispatch({ type: 'CLEAR' })
 
-  const removeItem = (id: string) => setItems(prev => prev.filter(p => p.id !== id))
-  const setQty = (id: string, qty: number) =>
-    setItems(prev => prev.map(p => (p.id === id ? { ...p, qty: Math.max(0, qty) } : p)))
-  const clearCart = () => setItems([])
+  const totalItems = useMemo(() => state.items.reduce((n, i) => n + (i.qty || 0), 0), [state.items])
+  const totalPrice = useMemo(
+    () => state.items.reduce((sum, i) => sum + i.price * (i.qty || 0), 0),
+    [state.items]
+  )
 
-  const subtotal = useMemo(() => items.reduce((s, i) => s + i.price * i.qty, 0), [items])
-  const totalItems = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items])
+  const value = useMemo(
+    () => ({ items: state.items, add, removeItem, setQty, clear, totalItems, totalPrice }),
+    [state.items, totalItems, totalPrice]
+  )
 
-  const value: CartContextShape = { items, addItem, removeItem, setQty, clearCart, totalItems, subtotal }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 

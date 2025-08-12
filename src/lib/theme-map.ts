@@ -1,59 +1,119 @@
-// src/lib/theme-map.ts
+export type ThemeKey =
+  | 'city'
+  | 'star-wars'
+  | 'ninjago'
+  | 'harry-potter'
+  | 'jurassic-world'
+  | 'the-lego-movie'
+  | 'speed-champions'
+  | 'space'
+  | 'pirates'
+  | 'pirates-of-the-caribbean'
+  | 'indiana-jones'
+  | 'ghostbusters'
+  | 'minions'
+  | 'the-simpsons'
+  | 'spongebob'
+  | 'trains'
+  | 'atlantis'
+  | 'monster-fighters'
+  | 'vidiyo'
+  | 'adventurers'
+  | 'hidden-side'
+  | 'nexo-knights'
+  | 'legends-of-chima'
+  | 'toy-story'
+  | 'ultra-agents'
+  | 'racers'
+  | 'ideas'
+  | 'collectible-minifigures'
+  | 'other'
 
-export type ThemeMapEntry = { key: string; label: string };
+export const THEME_LABELS: Record<ThemeKey, string> = {
+  city: 'City',
+  'star-wars': 'Star Wars',
+  ninjago: 'Ninjago',
+  'harry-potter': 'Harry Potter',
+  'jurassic-world': 'Jurassic World',
+  'the-lego-movie': 'The LEGO Movie',
+  'speed-champions': 'Speed Champions',
+  space: 'Space',
+  pirates: 'Pirates',
+  'pirates-of-the-caribbean': 'Pirates of the Caribbean',
+  'indiana-jones': 'Indiana Jones',
+  ghostbusters: 'Ghostbusters',
+  minions: 'Minions',
+  'the-simpsons': 'The Simpsons',
+  spongebob: 'SpongeBob SquarePants',
+  trains: 'Trains',
+  atlantis: 'Atlantis',
+  'monster-fighters': 'Monster Fighters',
+  vidiyo: 'VIDIYO',
+  adventurers: 'Adventurers',
+  'hidden-side': 'Hidden Side',
+  'nexo-knights': 'Nexo Knights',
+  'legends-of-chima': 'Legends of Chima',
+  'toy-story': 'Toy Story',
+  'ultra-agents': 'Ultra Agents',
+  racers: 'Racers',
+  ideas: 'Ideas',
+  'collectible-minifigures': 'Collectible Minifigures',
+  other: 'Other (Singles)',
+}
 
-// Prefix -> normalized {key,label}
-export const THEME_MAP: Record<string, ThemeMapEntry> = {
-  // majors
-  sw:   { key: 'star-wars',               label: 'Star Wars' },
-  hp:   { key: 'harry-potter',            label: 'Harry Potter' },
-  tlm:  { key: 'the-lego-movie',          label: 'The LEGO Movie' },
-  jw:   { key: 'jurassic-world',          label: 'Jurassic World' },
-  nin:  { key: 'ninjago',                 label: 'Ninjago' },
-  cty:  { key: 'city',                    label: 'City' },
-  twn:  { key: 'city',                    label: 'City' }, // Town → City
-  sp:   { key: 'space',                   label: 'Space' },
-  sc:   { key: 'speed-champions',         label: 'Speed Champions' },
+export function isCollectiblePrefix(p: string) {
+  return p.startsWith('col') || p === 'cmf'
+}
 
-  // from your inventory
-  toy:  { key: 'toy-story',               label: 'Toy Story' },
-  dim:  { key: 'lego-dimensions',         label: 'LEGO Dimensions' },
-  adp:  { key: 'adventurers',             label: 'Adventurers' },
-  hol:  { key: 'holiday-seasonal',        label: 'Holiday / Seasonal' },
-  loc:  { key: 'legends-of-chima',        label: 'Legends of Chima' },
-  bob:  { key: 'spongebob-squarepants',   label: 'SpongeBob SquarePants' },
-  nex:  { key: 'nexo-knights',            label: 'Nexo Knights' },
-  hs:   { key: 'hidden-side',             label: 'Hidden Side' },
-  gen:  { key: 'general',                 label: 'General' },
-  iaj:  { key: 'indiana-jones',           label: 'Indiana Jones' },
-  air:  { key: 'air',                     label: 'Air' },
-  uagt: { key: 'ultra-agents',            label: 'Ultra Agents' },
-  gs:   { key: 'ghostbusters',            label: 'Ghostbusters' },
-  min:  { key: 'minions',                 label: 'Minions' },
-  pi:   { key: 'pirates',                 label: 'Pirates' },
-  sim:  { key: 'the-simpsons',            label: 'The Simpsons' },
-  ac:   { key: 'arctic',                  label: 'Arctic' },
-  atl:  { key: 'atlantis',                label: 'Atlantis' },
-  mof:  { key: 'monster-fighters',        label: 'Monster Fighters' },
-  vid:  { key: 'vidiyo',                  label: 'VIDIYO' },
-  poc:  { key: 'pirates-of-the-caribbean',label: 'Pirates of the Caribbean' },
-  trn:  { key: 'trains',                  label: 'Trains' },
-  cop:  { key: 'city',                    label: 'City' }, // Police → City
-  idea: { key: 'ideas',                   label: 'IDEAS' },
-  tmnt: { key: 'tmnt',                    label: 'Teenage Mutant Ninja Turtles' },
-  rac:  { key: 'racers',                  label: 'Racers' },
-  mk:   { key: 'monkie-kid',              label: 'Monkie Kid' },
-};
+const CITYish = new Set(['twn', 'gen', 'air', 'cop'])
 
-// “col…” are Collectible Minifigures
-export const isCollectiblePrefix = (prefix: string) => /^col/i.test(prefix);
+const PREFIX_MAP: Record<string, ThemeKey> = {
+  // big ones
+  sw: 'star-wars',
+  hp: 'harry-potter',
+  njo: 'ninjago',
+  jw: 'jurassic-world',
+  tlm: 'the-lego-movie',
+  sc: 'speed-champions',
+  sp: 'space',
 
-// Map a BL prefix to our normalized theme (or null if unknown)
-export function normalizePrefix(prefix: string): ThemeMapEntry | null {
-  if (!prefix) return null;
-  if (isCollectiblePrefix(prefix)) {
-    return { key: 'collectible-minifigures', label: 'Collectible Minifigures' };
-  }
-  const hit = THEME_MAP[prefix.toLowerCase()];
-  return hit ?? null;
+  // City family
+  twn: 'city',
+  gen: 'city',
+  air: 'city',
+  cop: 'city',
+
+  // other themes
+  pi: 'pirates',
+  poc: 'pirates-of-the-caribbean',
+  iaj: 'indiana-jones',
+  gs: 'ghostbusters',
+  min: 'minions',
+  sim: 'the-simpsons',
+  trn: 'trains',
+  atl: 'atlantis',
+  mof: 'monster-fighters',
+  vid: 'vidiyo',
+  adp: 'adventurers',
+  hs: 'hidden-side',
+  nex: 'nexo-knights',
+  loc: 'legends-of-chima',
+  bob: 'spongebob',     // SpongeBob stays separate
+  toy: 'toy-story',
+  uagt: 'ultra-agents',
+  rac: 'racers',
+  idea: 'ideas',
+}
+
+export function extractPrefix(itemNo?: string) {
+  if (!itemNo) return ''
+  const m = itemNo.toLowerCase().match(/^[a-z]+/)
+  return m ? m[0] : ''
+}
+
+export function mapThemeKey(prefix: string): ThemeKey {
+  if (!prefix) return 'other'
+  if (isCollectiblePrefix(prefix)) return 'collectible-minifigures'
+  if (CITYish.has(prefix)) return 'city'
+  return PREFIX_MAP[prefix] ?? 'other'
 }

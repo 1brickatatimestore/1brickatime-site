@@ -1,0 +1,109 @@
+=== PUBLIC ===
+total 10776
+-rw-r--r--  1 info  staff    25K  6 Aug 12:56 favicon.ico
+-rw-r--r--  1 info  staff   391B  6 Aug 12:56 file.svg
+-rw-r--r--@ 1 info  staff   362K  5 Aug 17:43 footer-banner.png
+-rw-r--r--  1 info  staff   1.0K  6 Aug 12:56 globe.svg
+-rw-r--r--@ 1 info  staff   4.5M 12 Jul 16:43 logo.png
+-rw-r--r--  1 info  staff   1.3K  6 Aug 12:56 next.svg
+-rw-------@ 1 info  staff   345K 12 Aug 07:55 stud-rail.png
+-rw-r--r--  1 info  staff   128B  6 Aug 12:56 vercel.svg
+-rw-r--r--  1 info  staff   385B  6 Aug 12:56 window.svg
+
+=== SRC TREE ===
+  components
+  context
+  lib
+  models
+  pages
+  styles
+  
+  src/components:
+  CartBadge.module.css
+  CartBadge.tsx
+  Header.tsx
+  Layout.tsx
+  MinifigCard.tsx
+  SiteLayout.module.css
+  SiteLayout.tsx
+  
+  src/context:
+  CartContext.tsx
+  
+  src/lib:
+  cart.ts
+  db.ts
+  oauth.ts
+  paypal.ts
+  theme-groups.ts
+  theme-map.ts
+  
+  src/models:
+  Order.ts
+  Product.ts
+  
+  src/pages:
+  _app.tsx
+  _document.tsx
+  api
+  cart.tsx
+  checkout.tsx
+  index.module.css
+  index.tsx
+  minifig
+  minifigs-by-theme.tsx
+  minifigs.tsx
+  thank-you.tsx
+  
+  src/pages/api:
+  checkout
+  debug
+  debug-env.ts
+  debug-sync.ts
+  dev
+  hello.ts
+  minifigs-by-theme.ts
+  minifigs.ts
+  orders
+  orders.ts
+  payments
+  ping.ts
+  products.ts
+  sync-bricklink.ts
+  test-db.ts
+  test-env.ts
+  themes.ts
+  
+  src/pages/api/checkout:
+  bank.ts
+  checkout.tsx
+  paypal-capture.ts
+  paypal-order.ts
+  stripe-session.ts
+  
+  src/pages/api/debug:
+  env.ts
+  
+  src/pages/api/dev:
+  backfill-minifig-images.ts
+  backfill-themes.ts
+  ensure-indexes.ts
+  purge-incomplete.ts
+  repair-products.ts
+  
+  src/pages/api/orders:
+  bank.ts
+  create.ts
+  
+  src/pages/api/payments:
+  cart.tsx
+  paypal-order.ts
+  stripe-session.ts
+  
+  src/pages/minifig:
+  [id].tsx
+  
+  src/styles:
+  globals.css
+  home.module.css
+  minifigs.module.css
