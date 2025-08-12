@@ -1,91 +1,77 @@
-/* Page shell — keep header/main/footer locked */
+/* ────────────────── PAGE SHELL (LOCKED) ────────────────── */
 .shell{
-  /* Safe knobs */
-  --rail-w: 64px;      /* thickness of the left rail (try 56–72px) */
-  --plaque-h: 68%;     /* footer plaque height inside blue bar */
+  /* If you ever need the rail a tad thinner/thicker, change this ONE var. */
+  --rail-w: 72px;              /* width of the left stud strip */
+  --plaque-h: 68%;             /* inner footer plaque height */
 
-  background:#e9e3db;  /* cream */
+  background:#e9e3db;          /* cream */
   min-height:100dvh;
   display:flex;
   flex-direction:column;
   position:relative;
 }
 
-/* LEFT STUD RAIL — single strip, no extra red sides, repeats vertically */
+/* ────────────────── LEFT STUD RAIL (LOCKED) ────────────────── */
+/* Uses /public/stud-rail.png — a single image repeated ONLY vertically */
 .rail{
   position:fixed;
-  inset:0 auto 0 0;          /* left:0; top:0; bottom:0 */
+  inset:0 auto 0 0;            /* left:0; top:0; bottom:0 */
   width:var(--rail-w);
   z-index:0;
 
-  background-image:url('/stud-rail-strip.png'); /* or stud-rail-strip-2x.png */
+  /* Safety fill behind the PNG (never visible if the PNG loads). */
+  background-color:#9c2b2b;
+
+  /* IMPORTANT: This keeps the strip exactly the rail width, with
+     the studs in correct proportion, and repeats top→bottom only. */
+  background-image:url('/stud-rail.png');
   background-repeat:repeat-y;
-  background-size:100% auto;  /* fill the rail width, scale the strip */
-  background-position:left top;
-  background-color:#9c2b2b;   /* safety fill (hidden by the PNG) */
+  background-size:100% auto;    /* match rail width; no side “red wings” */
+  background-position:center top;
 }
 
-/* HEADER (locked) */
+/* ────────────────── HEADER (LOCKED) ────────────────── */
 .header{
   margin-left:var(--rail-w);
-  background:#1f5376;           /* blue */
+  background:#1f5376;          /* blue */
   color:#fff;
   height:56px;
-  display:flex;
-  align-items:center;
-  position:relative;
-  z-index:1;
+  display:flex; align-items:center;
+  position:relative; z-index:1;
 }
 .nav{
-  max-width:1200px;
-  margin:0 auto;
-  width:100%;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
+  max-width:1200px; margin:0 auto; width:100%;
+  display:flex; justify-content:space-between; align-items:center;
   padding:0 20px;
 }
-.brand{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  font-weight:700;
-}
-.links{
-  display:flex;
-  gap:20px;
-}
-.links a{
-  color:#ffd969;
-}
+.brand{ display:flex; gap:10px; align-items:center; font-weight:700; }
+.brand span{ color:#fff; }
+.links{ display:flex; gap:20px; }
+.links a{ color:#ffd969; }
 
-/* MAIN (locked) */
+/* ────────────────── MAIN (LOCKED) ────────────────── */
 .main{
   margin-left:var(--rail-w);
-  padding:24px 24px 124px;   /* leave room for footer plaque */
+  padding:24px 24px 124px;     /* leave room above footer */
   flex:1 0 auto;
-  position:relative;
-  z-index:1;
+  position:relative; z-index:1;
 }
 
-/* FOOTER (locked): full-width blue bar with centered sunflower plaque */
+/* ────────────────── FOOTER (LOCKED) ────────────────── */
 .footer{
   margin-left:var(--rail-w);
   background:#1f5376;
   height:110px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display:flex; align-items:center; justify-content:center;
   margin-top:auto;
-  position:relative;
-  z-index:1;
+  position:relative; z-index:1;
   box-shadow:0 -1px 0 rgba(0,0,0,.06) inset;
 }
 .footerImg{
   display:block;
   height:var(--plaque-h);
   width:auto;
-  max-width:min(640px, 82vw);
+  max-width:min(640px,82vw);
   border-radius:6px;
   box-shadow:0 2px 8px rgba(0,0,0,.12);
 }

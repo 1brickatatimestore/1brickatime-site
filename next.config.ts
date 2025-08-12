@@ -1,14 +1,12 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
+import type { NextConfig } from 'next'
+
+const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'img.bricklink.com' },
-      // add others if you ever need them
+      { protocol: 'https', hostname: 'static.bricklink.com' },
     ],
-    // while stabilizing you can also turn off optimization:
-    // unoptimized: true,
   },
 }
 
-module.exports = nextConfig
+export default nextConfig

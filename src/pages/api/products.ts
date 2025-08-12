@@ -1,54 +1,60 @@
+// src/pages/api/products.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '../../../lib/db'
-import mongoose from 'mongoose'
+// If your tsconfig has paths for "@/*", keep this:
+import dbConnect from '@/lib/db'
+import Product from '@/models/Product'
 
-type Json = {
-  success: boolean
-  message?: string
-  indexes?: any[]
-  droppedIndex?: string | null
-  unsetModified?: number
-  ensuredIndex?: string | null
-  error?: any
-}
+// If the alias "@" is NOT set up for you, swap the import above to:
+// import dbConnect from '../../lib/db'
+// import Product from '../../models/Product'
+
+type Json =
+  | { ok: true; items: any[]; total: number; page: number; limit: number }
+  | { ok: false; error: string }
 
 export default async function handler(
-  _req: NextApiRequest,
+  req: NextApiRequest,
   res: NextApiResponse<Json>
 ) {
   try {
-    await dbConnect(process.env.MONGODB_URI!)
-    const db = mongoose.connection.db
-    const col = db.collection('products')
+    await dbConnect()
 
-    // 1) List current indexes
-    const indexes = await col.indexes()
+    const {
+      type,
+      theme,          // optional theme code (e.g., "sw" for Star Wars)
+      q,              // search text
+      inStock,        // "1" | "true" to filter qty > 0
+      page = '1',
+      limit = '36',
+    } = req.query as Record<string, string>
 
-    // 2) Drop any index that includes minifigId
-    const minifigIdx = indexes.find(ix => ix.key && (ix.key as any).minifigId === 1)
-    if (minifigIdx) {
-      await col.dropIndex(minifigIdx.name)
+    const where: Record<string, any> = {}
+
+    if (type) where.type = type
+    if (theme) where.themeCode = theme
+    if (inStock === '1' || inStock === 'true') where.qty = { $gt: 0 }
+    if (q && q.trim()) {
+      where.$or = [
+        { name:   { $regex: q.trim(), $options: 'i' } },
+        { itemNo: { $regex: q.trim(), $options: 'i' } },
+      ]
     }
 
-    // 3) Remove the minifigId field from all docs (cleanup)
-    const unsetRes = await col.updateMany(
-      { minifigId: { $exists: true } },
-      { $unset: { minifigId: '' } }
-    )
+    const per = Math.max(1, Math.min(200, parseInt(limit, 10) || 36))
+    const pg  = Math.max(1, parseInt(page, 10) || 1)
 
-    // 4) Ensure we have a unique index on inventoryId (our new key)
-    await col.createIndex({ inventoryId: 1 }, { unique: true })
+    const [items, total] = await Promise.all([
+      Product.find(where)
+        .sort({ name: 1 })
+        .skip((pg - 1) * per)
+        .limit(per)
+        .lean(),
+      Product.countDocuments(where),
+    ])
 
-    return res.status(200).json({
-      success: true,
-      message: 'Repaired products collection.',
-      indexes,
-      droppedIndex: minifigIdx?.name || null,
-      unsetModified: unsetRes.modifiedCount,
-      ensuredIndex: 'inventoryId_1',
-    })
+    res.status(200).json({ ok: true, items, total, page: pg, limit: per })
   } catch (err: any) {
-    console.error('repair-products error:', err)
-    return res.status(500).json({ success: false, error: err?.message || String(err) })
+    console.error(err)
+    res.status(500).json({ ok: false, error: err?.message ?? 'server error' })
   }
 }
