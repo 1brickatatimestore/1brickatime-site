@@ -1,35 +1,22 @@
-// src/components/SiteLayout.tsx
-import { useEffect, useState } from 'react'
+import s from './SiteLayout.module.css'
 import Image from 'next/image'
 import Link from 'next/link'
-import s from './SiteLayout.module.css'
+import type { ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [miniCount, setMiniCount] = useState<number | null>(null)
+// avoid SSR mismatch for localStorage-backed count
+const CartBadge = dynamic(() => import('./CartBadge'), { ssr: false })
 
-  useEffect(() => {
-    let alive = true
-    fetch('/api/minifigs?type=MINIFIG&limit=1')
-      .then(r => r.json())
-      .then(d => { if (alive) setMiniCount(typeof d.count === 'number' ? d.count : null) })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
+type Props = { children: ReactNode }
 
+export default function SiteLayout({ children }: Props) {
   return (
     <div className={s.shell}>
-      {/* Left stud rail: single image, full height */}
+      {/* Left stud rail (locked) */}
       <div className={s.rail}>
-        <Image
-          src="/stud-rail.png"
-          alt=""
-          fill
-          priority
-          className={s.railImg}
-        />
+        <Image src="/stud-rail.png" alt="" fill priority className={s.railImg} />
       </div>
 
-      {/* Header (LOCKED) */}
       <header className={s.header}>
         <nav className={s.nav}>
           <div className={s.brand}>
@@ -39,17 +26,14 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           <div className={s.links}>
             <Link href="/">Home</Link>
             <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
-            <Link href="/minifigs-by-theme">
-              {`Minifigs by Theme${miniCount !== null ? ` (${miniCount})` : ''}`}
-            </Link>
+            <Link href="/minifigs-by-theme">Minifigs by Theme</Link>
+            <CartBadge />
           </div>
         </nav>
       </header>
 
-      {/* Main */}
       <main className={s.main}>{children}</main>
 
-      {/* Footer (LOCKED) */}
       <footer className={s.footer}>
         <Image
           src="/footer-banner.png"
