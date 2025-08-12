@@ -1,77 +1,116 @@
-/* ────────────────── PAGE SHELL (LOCKED) ────────────────── */
-.shell{
-  /* If you ever need the rail a tad thinner/thicker, change this ONE var. */
-  --rail-w: 72px;              /* width of the left stud strip */
-  --plaque-h: 68%;             /* inner footer plaque height */
+/* ─────────────── LOCKED LAYOUT (edge-to-edge header/footer, single left rail) ─────────────── */
 
-  background:#e9e3db;          /* cream */
-  min-height:100dvh;
-  display:flex;
-  flex-direction:column;
-  position:relative;
+.shell {
+  /* Local design tokens (avoid :root to keep CSS Modules happy) */
+  --rail-w: 64px;        /* left LEGO rail width (keep 56–72) */
+  --header-h: 56px;      /* header height */
+  --footer-h: 110px;     /* footer height */
+  --blue: #1f5376;       /* header/footer */
+  --cream: #e9e3db;      /* page background */
+  --text: #1e1e1e;
+
+  background: var(--cream);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  color: var(--text);
 }
 
-/* ────────────────── LEFT STUD RAIL (LOCKED) ────────────────── */
-/* Uses /public/stud-rail.png — a single image repeated ONLY vertically */
-.rail{
-  position:fixed;
-  inset:0 auto 0 0;            /* left:0; top:0; bottom:0 */
-  width:var(--rail-w);
-  z-index:0;
-
-  /* Safety fill behind the PNG (never visible if the PNG loads). */
-  background-color:#9c2b2b;
-
-  /* IMPORTANT: This keeps the strip exactly the rail width, with
-     the studs in correct proportion, and repeats top→bottom only. */
-  background-image:url('/stud-rail.png');
-  background-repeat:repeat-y;
-  background-size:100% auto;    /* match rail width; no side “red wings” */
-  background-position:center top;
+/* Left rail: fixed, behind everything else */
+.rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--rail-w);
+  z-index: 0;           /* sits behind header/main/footer */
+  background: #9c2b2b;  /* safety fill behind PNG */
 }
 
-/* ────────────────── HEADER (LOCKED) ────────────────── */
-.header{
-  margin-left:var(--rail-w);
-  background:#1f5376;          /* blue */
-  color:#fff;
-  height:56px;
-  display:flex; align-items:center;
-  position:relative; z-index:1;
-}
-.nav{
-  max-width:1200px; margin:0 auto; width:100%;
-  display:flex; justify-content:space-between; align-items:center;
-  padding:0 20px;
-}
-.brand{ display:flex; gap:10px; align-items:center; font-weight:700; }
-.brand span{ color:#fff; }
-.links{ display:flex; gap:20px; }
-.links a{ color:#ffd969; }
-
-/* ────────────────── MAIN (LOCKED) ────────────────── */
-.main{
-  margin-left:var(--rail-w);
-  padding:24px 24px 124px;     /* leave room above footer */
-  flex:1 0 auto;
-  position:relative; z-index:1;
+/* The PNG fills the rail, showing full studs top-to-bottom */
+.railImg {
+  object-fit: cover;
+  object-position: left top;
 }
 
-/* ────────────────── FOOTER (LOCKED) ────────────────── */
-.footer{
-  margin-left:var(--rail-w);
-  background:#1f5376;
-  height:110px;
-  display:flex; align-items:center; justify-content:center;
-  margin-top:auto;
-  position:relative; z-index:1;
-  box-shadow:0 -1px 0 rgba(0,0,0,.06) inset;
+/* Full-width header (blue), shifted by rail width */
+.header {
+  margin-left: var(--rail-w);
+  height: var(--header-h);
+  background: var(--blue);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  position: relative;
+  z-index: 1;
 }
-.footerImg{
-  display:block;
-  height:var(--plaque-h);
-  width:auto;
-  max-width:min(640px,82vw);
-  border-radius:6px;
-  box-shadow:0 2px 8px rgba(0,0,0,.12);
+
+/* Nav content; feel free to tweak max-width */
+.nav {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+}
+
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.links {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.links a {
+  color: #ffd969;
+  font-weight: 700;
+}
+
+/* Main area */
+.main {
+  margin-left: var(--rail-w);
+  padding: 24px 24px 124px; /* bottom padding to clear footer */
+  flex: 1 0 auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* Full-width footer (blue) */
+.footer {
+  margin-left: var(--rail-w);
+  height: var(--footer-h);
+  background: var(--blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;   /* pins to bottom */
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06) inset;
+}
+
+/* Center plaque image inside footer bar */
+.footerImg {
+  display: block;
+  height: 68%;
+  width: auto;
+  max-width: min(640px, 82vw);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Small screens */
+@media (max-width: 900px) {
+  .nav { padding: 0 14px; }
+  .main { padding: 18px 18px 110px; }
+  .footer { height: 100px; }
 }

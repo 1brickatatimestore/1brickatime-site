@@ -1,18 +1,17 @@
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
-import { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
+import { useRef } from 'react'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
   _id?: string
   inventoryId?: number
-  itemNo?: string
   name?: string
-  condition?: string
+  itemNo?: string
   price?: number
-  qty?: number
+  condition?: string
   imageUrl?: string
 }
 
@@ -21,138 +20,75 @@ type Props = {
   count: number
   page: number
   limit: number
-  q?: string
-  condition?: string
-  priceMin?: string
-  priceMax?: string
-  theme?: string
+  q: string
+  cond: string
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async ({ req, query }) => {
-  const base =
-    process. PAYPAL_CLIENT_SECRET_REDACTED||
-    `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`
-
-  const params = new URLSearchParams()
-  params.set('type', 'MINIFIG')
-  params.set('page', String(query.page || 1))
-  params.set('limit', String(query.limit || 36))
-  if (query.q) params.set('q', String(query.q))
-  if (query.condition) params.set('condition', String(query.condition))
-  if (query.priceMin) params.set('priceMin', String(query.priceMin))
-  if (query.priceMax) params.set('priceMax', String(query.priceMax))
-  if (query.theme) params.set('theme', String(query.theme))
-
-  const res = await fetch(`${base}/api/products?${params.toString()}`, { headers: { accept: 'application/json' } })
-  const json = await res.json()
-
-  return {
-    props: {
-      items: json.items || [],
-      count: json.count || 0,
-      page: Number(json.page || 1),
-      limit: Number(json.limit || 36),
-      q: String(query.q || ''),
-      condition: String(query.condition || ''),
-      priceMin: String(query.priceMin || ''),
-      priceMax: String(query.priceMax || ''),
-      theme: String(query.theme || ''),
-    },
-  }
-}
-
-export default function MinifigsPage({ items, count, page, limit, q, condition, priceMin, priceMax, theme }: Props) {
+export default function MinifigsPage({ items, count, page, limit, q, cond }: Props) {
   const router = useRouter()
   const { add } = useCart()
-  const totalPages = Math.max(1, Math.ceil(count / Math.max(1, limit)))
+  const qRef = useRef<HTMLInputElement>(null)
 
-  const onSubmit: React.FormEventHandler<HTMLFormElement> = (e) => {
+  const pages = Math.max(1, Math.ceil(count / Math.max(1, limit)))
+
+  const buildHref = (nextPage: number) => {
+    const p = new URLSearchParams()
+    p.set('page', String(nextPage))
+    p.set('limit', String(limit))
+    if (q) p.set('q', q)
+    if (cond) p.set('cond', cond)
+    return `/minifigs?${p.toString()}`
+  }
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const params = new URLSearchParams()
-    params.set('type', 'MINIFIG')
-    params.set('limit', String(limit))
-    const qv = String(fd.get('q') || '')
-    if (qv) params.set('q', qv)
-    const cond = String(fd.get('condition') || '')
-    if (cond) params.set('condition', cond)
-    const pmin = String(fd.get('priceMin') || '')
-    if (pmin) params.set('priceMin', pmin)
-    const pmax = String(fd.get('priceMax') || '')
-    if (pmax) params.set('priceMax', pmax)
-    if (theme) params.set('theme', theme)
-    router.push(`/minifigs?${params.toString()}`)
+    const q = String(fd.get('q') || '').trim()
+    const cond = String(fd.get('cond') || '')
+    const p = new URLSearchParams()
+    p.set('page', '1')
+    p.set('limit', String(limit))
+    if (q) p.set('q', q)
+    if (cond) p.set('cond', cond)
+    router.push(`/minifigs?${p.toString()}`)
   }
 
-  const goPage = (n: number) => {
-    const params = new URLSearchParams(router.query as any)
-    params.set('page', String(n))
-    router.push(`/minifigs?${params.toString()}`)
-  }
+  const hasItems = Array.isArray(items) && items.length > 0
 
   return (
     <>
       <Head>
-        <title>Minifigs — {count} items</title>
+        <title>{`Minifigs — 1 Brick at a Time`}</title>
       </Head>
 
-      <main style={{ marginLeft: 'var(--rail-w, 64px)', padding: 24 }}>
-        <form onSubmit={onSubmit} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+      <main className="wrap">
+        <form className="filters" onSubmit={onSubmit}>
           <input
+            ref={qRef}
             name="q"
             defaultValue={q}
-            placeholder="Search name or item number…"
-            style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #b9c6cf', minWidth: 260 }}
+            placeholder="Search name or number…"
+            className="text"
           />
-          <select
-            name="condition"
-            defaultValue={condition || ''}
-            style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #b9c6cf' }}
-          >
-            <option value="">All</option>
+          <select name="cond" defaultValue={cond} className="select">
+            <option value="">Any condition</option>
             <option value="N">New</option>
             <option value="U">Used</option>
           </select>
-          <input
-            name="priceMin"
-            defaultValue={priceMin}
-            placeholder="Min $"
-            inputMode="decimal"
-            style={{ width: 90, padding: '8px 10px', borderRadius: 8, border: '1px solid #b9c6cf' }}
-          />
-          <input
-            name="priceMax"
-            defaultValue={priceMax}
-            placeholder="Max $"
-            inputMode="decimal"
-            style={{ width: 90, padding: '8px 10px', borderRadius: 8, border: '1px solid #b9c6cf' }}
-          />
-          <button type="submit" className="applyBtn" style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #204d69', background: '#204d69', color: '#fff' }}>
-            Apply
-          </button>
+          <button type="submit" className="btnPrimary">Apply</button>
+          <Link className="btnGhost" href="/minifigs">Clear</Link>
+
+          <span className="meta">
+            {count} items • Page {page}/{pages}
+          </span>
         </form>
 
-        <div style={{ marginBottom: 10, color: '#1f1f1f' }}>
-          {count} items {theme ? `(Theme: ${theme})` : ''}
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: 12,
-          }}
-        >
-          {items.map((p) => {
-            const key = p.inventoryId ? String(p.inventoryId) : (p._id as string)
-            const price = Number(p.price || 0)
-            return (
-              <article key={key} style={{ background: '#fff', borderRadius: 12, padding: 10, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
-                <Link
-                  href={`/minifig/${p.inventoryId ? String(p.inventoryId) : (p._id as string)}`}
-                  style={{ textDecoration: 'none', color: 'inherit' }}
-                >
-                  <div style={{ position: 'relative', width: '100%', aspectRatio: '1 / 1', background: '#f6f6f6', borderRadius: 8, overflow: 'hidden' }}>
+        {hasItems ? (
+          <>
+            <div className="grid">
+              {items.map((p) => (
+                <article key={p.inventoryId ?? p._id} className="card">
+                  <div className="imgBox">
                     {p.imageUrl ? (
                       <Image
                         src={p.imageUrl}
@@ -162,69 +98,113 @@ export default function MinifigsPage({ items, count, page, limit, q, condition, 
                         style={{ objectFit: 'contain' }}
                       />
                     ) : (
-                      <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: '#888' }}>No image</div>
+                      <div className="noImg">No image</div>
                     )}
                   </div>
-                </Link>
 
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{p.name || p.itemNo}</div>
-                  <div style={{ fontSize: 13, color: '#2a2a2a', marginBottom: 8 }}>
-                    {p.itemNo} · {(p.condition || 'U').toUpperCase()} · ${price.toFixed(2)}
+                  <h3 className="name" title={p.name}>
+                    {p.name || p.itemNo || 'Minifig'}
+                  </h3>
+
+                  <div className="priceRow">
+                    <span className="price">
+                      ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
+                    </span>
+
+                    <button
+                      className="addBtn"
+                      onClick={() =>
+                        add({
+                          id: p.inventoryId ? String(p.inventoryId) : (p._id as string),
+                          name: p.name ?? p.itemNo ?? 'Minifig',
+                          price: Number(p.price ?? 0),
+                          qty: 1,
+                          imageUrl: p.imageUrl,
+                        })
+                      }
+                    >
+                      Add to cart
+                    </button>
                   </div>
-                  <button
-                    className="addBtn"
-                    onClick={() =>
-                      add({
-                        id: p.inventoryId ? String(p.inventoryId) : (p._id as string),
-                        name: p.name ?? p.itemNo ?? 'Minifig',
-                        price,
-                        qty: 1,
-                        imageUrl: p.imageUrl,
-                      })
-                    }
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 8,
-                      border: '2px solid #a2801a',
-                      background: '#e1b946',
-                      color: '#1a1a1a',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18 }}>
-            <button
-              onClick={() => goPage(Math.max(1, page - 1))}
-              disabled={page <= 1}
-              style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #ccd6dd', background: '#fff' }}
-            >
-              ‹ Prev
-            </button>
-            <div style={{ padding: '8px 10px' }}>
-              Page {page} / {totalPages}
+                </article>
+              ))}
             </div>
-            <button
-              onClick={() => goPage(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages}
-              style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid #ccd6dd', background: '#fff' }}
-            >
-              Next ›
-            </button>
-          </div>
+
+            {pages > 1 && (
+              <nav className="pager" aria-label="Pagination">
+                <Link className="pbtn" href={buildHref(Math.max(1, page - 1))} aria-disabled={page <= 1}>
+                  ← Prev
+                </Link>
+                <span className="pmeta">Page {page} / {pages}</span>
+                <Link className="pbtn" href={buildHref(Math.min(pages, page + 1))} aria-disabled={page >= pages}>
+                  Next →
+                </Link>
+              </nav>
+            )}
+          </>
+        ) : (
+          <p className="empty">No items found.</p>
         )}
       </main>
+
+      <style jsx>{`
+        .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
+        .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
+        .text, .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
+        .text { min-width:280px; }
+        .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; }
+        .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
+        .meta { margin-left:auto; font-size:13px; color:#333; }
+        .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
+        .card { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; gap:8px; }
+        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; }
+        .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; font-size:14px; }
+        .name { font-size:14px; margin:0 0 6px; min-height:34px; color:#1e1e1e; }
+        .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; }
+        .price { font-weight:700; color:#2a2a2a; }
+        .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; }
+        .pager { display:flex; gap:12px; align-items:center; justify-content:center; margin:18px 0 6px; }
+        .pbtn { border:2px solid #204d69; color:#204d69; padding:6px 12px; border-radius:8px; font-weight:700; }
+        .pmeta { color:#333; font-weight:600; }
+        .empty { color:#333; font-size:15px; padding:8px 2px; }
+        @media (max-width:900px){ .wrap{ margin-left:64px; padding:14px 16px 110px; } }
+      `}</style>
     </>
   )
+}
+
+export async function getServerSideProps(ctx: any) {
+  const { req, query } = ctx
+  const host = req?.headers?.host || 'localhost:3000'
+  const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
+
+  const page = Math.max(1, Number(query.page ?? 1))
+  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 36)))
+  const q = typeof query.q === 'string' ? query.q : ''
+  const cond = typeof query.cond === 'string' ? query.cond : ''
+
+  const params = new URLSearchParams()
+  params.set('type', 'MINIFIG')
+  params.set('page', String(page))
+  params.set('limit', String(limit))
+  if (q) params.set('q', q)
+  if (cond) params.set('cond', cond)
+
+  let items: Item[] = []
+  let count = 0
+
+  const res = await fetch(`${proto}://${host}/api/products?${params.toString()}`)
+  if (res.ok) {
+    const data = await res.json()
+    // Tolerate multiple shapes
+    const arr =
+      (Array.isArray(data.inventory) && data.inventory) ||
+      (Array.isArray(data.items) && data.items) ||
+      (Array.isArray(data.results) && data.results) ||
+      []
+    items = arr
+    count = Number(data.count ?? arr.length ?? 0)
+  }
+
+  return { props: { items, count, page, limit, q, cond } }
 }
