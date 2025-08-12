@@ -14,10 +14,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const orderId = `K${Date.now().toString(36).toUpperCase()}`
 
   const bank = {
+<<<<<<< HEAD
     name: process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
     bsb: process.env.BANK_DEPOSIT_BSB || '',
     account: process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
     referenceHint: process. PAYPAL_CLIENT_SECRET_REDACTED|| 'Use your order number as reference',
+=======
+    name: process.env.BANK_DEPOSIT_NAME || '',
+    bsb: process.env.BANK_DEPOSIT_BSB || '',
+    account: process.env.BANK_DEPOSIT_ACCOUNT || '',
+    referenceHint: process.env.BANK_DEPOSIT_REFERENCE_HINT || 'Use your order number as reference',
+>>>>>>> c2a3494 (Lock Minifigs page: filters + centered images)
   }
 
   return res.status(200).json({

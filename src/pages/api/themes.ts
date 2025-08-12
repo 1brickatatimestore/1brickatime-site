@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 // src/pages/api/themes.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { MongoClient } from "mongodb";
@@ -61,82 +62,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (err: any) {
     return res.status(500).json({ error: "products_facets_unavailable", detail: JSON.stringify({ error: err?.message, elapsedMs: Date.now() - started }) });
 =======
+=======
+// src/pages/api/themes.ts
+>>>>>>> c2a3494 (Lock Minifigs page: filters + centered images)
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '@/lib/db'
-import Product from '@/models/Product'
+import dbConnect from '../../lib/db'
+import Product from '../../models/Product'
+import { normalizePrefix, ThemeMapEntry } from '../../lib/theme-map'
 
-type ThemeOpt = { key: string; label: string; count: number }
-type Resp = { options: ThemeOpt[]; total: number; error?: string }
+type Opt = { key: string; label: string; count: number }
 
-/** Map BrickLink-style minifig itemNo prefixes → main theme names */
-const CODE_TO_THEME: Record<string, string> = {
-  // Big ones
-  cty: 'City', twn: 'City', city: 'City',
-  sw: 'Star Wars',
-  hp: 'Harry Potter',
-  njo: 'Ninjago', nj: 'Ninjago',
-  jw: 'Jurassic World', jwl: 'Jurassic World',
-  tlm: 'The LEGO Movie', tlm2: 'The LEGO Movie',
-  sp: 'Space',  // (generic space bucket)
-  sc: 'Speed Champions',
-  cas: 'Castle',
-  jwj: 'Jurassic World',
-  loc: 'Legends of Chima',
-  uagt: 'Ultra Agents',
-  dim: 'LEGO Dimensions',
-  bob: 'SpongeBob SquarePants',
-  sim: 'The Simpsons',
-  tmnt: 'Teenage Mutant Ninja Turtles', tnt: 'Teenage Mutant Ninja Turtles',
-  ind: 'Indiana Jones', iaj: 'Indiana Jones',
-  rac: 'Racers',
-  pi: 'Pirates',
-  poc: 'Pirates of the Caribbean',
-  trn: 'Trains',
-  vid: 'VIDIYO',
-  mk: 'Monkie Kid',
-  min: 'Minions',
-  adp: 'Adventurers',
-  hs: 'Hidden Side',
-  gs: 'Ghostbusters',
-  tnr: 'Trains',
-  air: 'City',
-  // Collectible Minifigures
-  col: 'Collectible Minifigures',
-  coltl: 'Collectible Minifigures',
-  colma: 'Collectible Minifigures',
-  colhp: 'Collectible Minifigures',
-  colsw: 'Collectible Minifigures',
-  // Add more as you encounter them
+// Extract leading letters from itemNo, e.g. "sw0262" -> "sw"
+function getPrefix(itemNo?: string): string {
+  if (!itemNo) return ''
+  const m = itemNo.toLowerCase().match(/^[a-z]+/)
+  return m ? m[0] : ''
 }
 
-function normalizeName(raw?: string): string {
-  const s = (raw || '').trim()
-  if (!s) return ''
-  // Unify common spellings
-  if (/^city$/i.test(s) || /^town$/i.test(s)) return 'City'
-  if (/^star\s*wars$/i.test(s) || /^sw$/i.test(s)) return 'Star Wars'
-  if (/^harry\s*potter$/i.test(s) || /^hp$/i.test(s)) return 'Harry Potter'
-  if (/^speed\s*champ/i.test(s)) return 'Speed Champions'
-  if (/^lego\s*movie/i.test(s) || /^tlm/i.test(s)) return 'The LEGO Movie'
-  if (/^legends?\s*of\s*chima/i.test(s)) return 'Legends of Chima'
-  if (/^ninjago$/i.test(s)) return 'Ninjago'
-  if (/^collectible/i.test(s)) return 'Collectible Minifigures'
-  return s.replace(/\s+/g, ' ').trim()
-}
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  await dbConnect()
 
-function themeFromItemNo(itemNo?: string): string {
-  const s = (itemNo || '').toLowerCase()
-  const m = s.match(/^[a-z]+/)
-  if (!m) return ''
-  const code = m[0]
-  // try 4,3,2 letter windows (e.g., tlm2, njo, sw)
-  for (const len of [4, 3, 2]) {
-    const key = code.slice(0, len)
-    if (CODE_TO_THEME[key]) return CODE_TO_THEME[key]
+  // Only minifigs
+  const docs = await Product.find({ type: 'MINIFIG' }, { itemNo: 1 }).lean()
+
+  // Count per normalized key
+  const tally = new Map<string, { entry: ThemeMapEntry; count: number }>()
+  const singlesBucket = { key: 'other', label: 'Other (Singles)' }
+
+  for (const d of docs) {
+    const prefix = getPrefix(d.itemNo)
+    const entry = normalizePrefix(prefix)
+    const key = entry ? entry.key : `__unknown__:${prefix || 'none'}`
+    const label = entry ? entry.label : 'Other (Singles)'
+
+    const mapKey = entry ? key : '__other__'
+    const prev = tally.get(mapKey)
+    if (prev) prev.count += 1
+    else tally.set(mapKey, { entry: entry ?? singlesBucket, count: 1 })
   }
-  return ''
-}
 
+<<<<<<< HEAD
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Resp>
@@ -209,5 +174,22 @@ export default async function handler(
       .status(200)
       .json({ options: [], total: 0, error: String(e?.message || e) })
 >>>>>>> 03f49cd (Stable: themes page fixed, images good, layout locked)
+=======
+  // Merge any normalized themes that have only 1 item into "Other (Singles)"
+  let otherCount = 0
+  const list: Opt[] = []
+  for (const { entry, count } of tally.values()) {
+    if (entry.key === 'other') { otherCount += count; continue }
+    if (count === 1) otherCount += 1
+    else list.push({ key: entry.key, label: entry.label, count })
+>>>>>>> c2a3494 (Lock Minifigs page: filters + centered images)
   }
+  if (otherCount > 0) {
+    list.push({ key: 'other', label: 'Other (Singles)', count: otherCount })
+  }
+
+  // Sort alpha by label (your request)
+  list.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
+
+  res.json({ options: list })
 }

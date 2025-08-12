@@ -1,12 +1,10 @@
-# Folders to ignore
-node_modules/
-.next/
-turbo/
-dist/
-out/
-
-# Mac-specific
-.DS_Store
-
-# Environment
-.env
+node_modules
+.next
+dist
+*.log
+.env.local
+*.zip
+_attic/
+backend/
+frontend/
+target/

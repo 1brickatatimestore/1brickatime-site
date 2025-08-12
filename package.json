@@ -13,7 +13,8 @@
     "vercel:preview": "vercel --yes",
     "vercel:prod": "vercel --prod",
     "api:curl:preview": "curl -s \"$PREV/api/minifigs-live?limit=2\" | jq",
-    "api:curl:prod": "curl -s \"$PROD/api/minifigs-live?limit=2\" | jq"
+    "api:curl:prod": "curl -s \"$PROD/api/minifigs-live?limit=2\" | jq",
+    "backup": "bash scripts/backup.sh"
   },
   "dependencies": {
     "axios": "^1.11.0",

@@ -102,7 +102,11 @@ export default function CheckoutPage() {
               {items.map((it) => (
                 <div key={it.sku} style={{display:'flex', gap:12, alignItems:'center', background:'#fff', padding:12, borderRadius:8}}>
                   {it.imageUrl ? (
+<<<<<<< HEAD
                     //  PAYPAL_CLIENT_SECRET_REDACTED@next/next/no-img-element
+=======
+                    // eslint-disable-next-line @next/next/no-img-element
+>>>>>>> c2a3494 (Lock Minifigs page: filters + centered images)
                     <img src={it.imageUrl} alt="" width={64} height={64} style={{objectFit:'contain'}} />
                   ) : null}
                   <div style={{flex:1}}>
