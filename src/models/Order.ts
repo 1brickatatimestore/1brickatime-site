@@ -1,23 +1,33 @@
 // src/models/Order.ts
-import mongoose from 'mongoose';
+import mongoose, { Schema, models, model } from 'mongoose'
 
-const Item = new mongoose.Schema({
-  itemNo: String,
-  name: String,
-  price: Number,
-  qty: { type: Number, default: 1 },
-}, { _id: false });
-
-const OrderSchema = new mongoose.Schema({
-  paymentMethod: { type: String, enum: ['bank', 'stripe', 'paypal'], required: true },
-  status: { type: String, default: 'pending' },
-  items: [Item],
-  total: Number,
-  customer: {
-    name: String,
-    email: String,
-    notes: String,
+const OrderItemSchema = new Schema(
+  {
+    inventoryId: { type: Number, required: true },
+    itemNo: { type: String, default: null },
+    name: { type: String, default: null },
+    imageUrl: { type: String, default: null },
+    price: { type: Number, required: true },
+    qty: { type: Number, required: true, min: 1 },
   },
-}, { timestamps: true });
+  { _id: false }
+)
 
-export default (mongoose.models.Order as any) || mongoose.model('Order', OrderSchema);
+const OrderSchema = new Schema(
+  {
+    method: { type: String, enum: ['BANK', 'PAYPAL', 'STRIPE'], required: true },
+    items: { type: [OrderItemSchema], required: true },
+    subtotal: { type: Number, required: true },
+    status: { type: String, default: 'PENDING' }, // PENDING, PAID, CANCELED
+    contact: {
+      email: { type: String, default: null },
+      name: { type: String, default: null },
+      notes: { type: String, default: null },
+    },
+  },
+  { timestamps: true }
+)
+
+export type OrderDoc = mongoose.InferSchemaType<typeof OrderSchema>
+
+export default models.Order || model('Order', OrderSchema)
