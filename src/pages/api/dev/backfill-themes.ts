@@ -1,25 +1,17 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '../../../lib/db'
-import Product from '../../../models/Product'
-import { sniffTheme } from '@/lib/theme-map'
+import { NextApiRequest, NextApiResponse } from 'next';
+import { connectToDatabase } from '@/lib/db';
+import themesData from '@/data/themes.json';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' })
-  await dbConnect()
-
-  const cursor = (Product as any).find({ type: 'MINIFIG' }).cursor()
-  let updated = 0
-
-  for await (const doc of cursor as any) {
-    const { code, label } = sniffTheme(doc.itemNo)
-    // only write when missing or changed
-    if (doc.themeCode !== code || doc.themeLabel !== label) {
-      doc.themeCode = code
-      doc.themeLabel = label
-      await doc.save()
-      updated++
-    }
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  res.json({ ok: true, updated })
+  const { db } = await connectToDatabase();
+  const collection = db.collection('themes');
+
+  await collection.deleteMany({});
+  await collection.insertMany(themesData);
+
+  res.status(200).json({ message: 'Themes backfilled successfully' });
 }

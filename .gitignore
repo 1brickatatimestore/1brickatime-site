@@ -1,21 +1,12 @@
-/.vercel
-/.next
-/node_modules
+# Folders to ignore
+node_modules/
+.next/
+turbo/
+dist/
+out/
+
+# Mac-specific
 .DS_Store
-*.log
-.vercel
 
-# Keep heavy build/release artifacts out of git
-releases/
-*.tar.gz
-*.zip
-*.tgz
-*.7z
-
-# Never commit secrets
-.env*
-!.env.example
-
-# Never commit secrets
-.env*
-!.env.example
+# Environment
+.env
