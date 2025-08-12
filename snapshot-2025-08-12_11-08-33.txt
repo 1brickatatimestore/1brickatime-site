@@ -1,0 +1,69 @@
+=== PUBLIC ===
+total 10776
+-rw-r--r--  1 info  staff    25K  6 Aug 12:56 favicon.ico
+-rw-r--r--  1 info  staff   391B  6 Aug 12:56 file.svg
+-rw-r--r--@ 1 info  staff   362K  5 Aug 17:43 footer-banner.png
+-rw-r--r--  1 info  staff   1.0K  6 Aug 12:56 globe.svg
+-rw-r--r--@ 1 info  staff   4.5M 12 Jul 16:43 logo.png
+-rw-r--r--  1 info  staff   1.3K  6 Aug 12:56 next.svg
+-rw-------@ 1 info  staff   345K 12 Aug 07:55 stud-rail.png
+-rw-r--r--  1 info  staff   128B  6 Aug 12:56 vercel.svg
+-rw-r--r--  1 info  staff   385B  6 Aug 12:56 window.svg
+
+=== SRC TREE ===
+  components
+  lib
+  models
+  pages
+  styles
+  
+  src/components:
+  Header.tsx
+  Layout.tsx
+  MinifigCard.tsx
+  SiteLayout.module.css
+  SiteLayout.tsx
+  
+  src/lib:
+  db.ts
+  oauth.ts
+  theme-groups.ts
+  themeMap.ts
+  
+  src/models:
+  Product.ts
+  
+  src/pages:
+  _app.tsx
+  _document.tsx
+  api
+  index.module.css
+  index.tsx
+  minifigs-by-theme.tsx
+  minifigs.tsx
+  
+  src/pages/api:
+  debug-env.ts
+  debug-sync.ts
+  dev
+  hello.ts
+  minifigs-by-theme.ts
+  minifigs.ts
+  ping.ts
+  products.ts
+  sync-bricklink.ts
+  test-db.ts
+  test-env.ts
+  themes.ts
+  
+  src/pages/api/dev:
+  backfill-minifig-images.ts
+  backfill-themes.ts
+  ensure-indexes.ts
+  purge-incomplete.ts
+  repair-products.ts
+  
+  src/styles:
+  globals.css
+  home.module.css
+  minifigs.module.css
