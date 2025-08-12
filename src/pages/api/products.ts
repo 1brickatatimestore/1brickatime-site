@@ -6,199 +6,134 @@ import overrides from '@/lib/themeOverrides.json'
 type Item = {
   _id?: string
   inventoryId?: number
-  type?: string
   itemNo?: string
   name?: string
   price?: number
   condition?: string
   imageUrl?: string
-  quantity?: number
+  status?: string
   qty?: number
-  stock?: number
-  inStock?: boolean
 }
 
-type Data = {
+type Json = {
   count: number
   items: Item[]
+  page: number
+  limit: number
 }
 
-const isTruthy = (v: any) => v === 1 || v === '1' || v === true || v === 'true'
-
-// ---- THEME HELPERS ----------------------------------------------------------
-
-/**
- * Compile regexes once from themeOverrides.json
- */
-type ThemeMap = {
-  [slug: string]: { prefixes?: string[]; contains?: string[] }
-}
-const themeMap: ThemeMap = (() => {
-  const out: ThemeMap = {}
-  const src = overrides as any
-
-  const toArray = (v: any) =>
-    Array.isArray(v) ? v : typeof v === 'string' && v ? [v] : []
-
-  if (src?.mapPrefix) {
-    for (const [pref, slug] of Object.entries<string>(src.mapPrefix)) {
-      out[slug] ||= {}
-      out[slug].prefixes ||= []
-      out[slug].prefixes!.push(pref)
-    }
-  }
-  if (src?.mapContains) {
-    for (const [frag, slug] of Object.entries<string>(src.mapContains)) {
-      out[slug] ||= {}
-      out[slug].contains ||= []
-      out[slug].contains!.push(frag)
-    }
-  }
-  // normalize + uniq
-  for (const slug of Object.keys(out)) {
-    out[slug].prefixes = Array.from(new Set(toArray(out[slug].prefixes)))
-    out[slug].contains = Array.from(new Set(toArray(out[slug].contains)))
-  }
-  return out
-})()
-
-/**
- * Build a Mongo match object for a specific theme slug.
- * - For normal themes: OR of (itemNo startsWith any prefix) OR (name contains any fragment)
- * - For "collectible-minifigures" with ?series=N: filter by series number in the name
- * - For "other": NEGATION of ALL known theme tests (i.e., not matching any theme)
- */
-function buildThemeMatch(theme?: string, series?: string) {
-  if (!theme || theme === '__ALL__') return {}
-
-  const lc = theme.toLowerCase()
-
-  // CMF series handling
-  if (lc === 'collectible-minifigures') {
-    if (series && /^[0-9]+$/.test(series)) {
-      const n = Number(series)
-      // Match e.g. "Series 11" / "Series 11" in the name
-      return {
-        name: { $regex: new RegExp(`\\bSeries\\s*${n}\\b`, 'i') },
-      }
-    }
-    // CMF without series = just the theme
-    const t = themeMap['collectible-minifigures'] || { prefixes: [], contains: [] }
-    return orFromThemeParts(t)
-  }
-
-  if (lc === 'other') {
-    // Build a single big $nor that rejects ANY known theme
-    const allParts = collectAllThemePartsExcluding('other')
-    const nor: any[] = []
-    if (allParts.prefixes.length) {
-      const big = new RegExp(`^(${allParts.prefixes.map(escapeRx).join('|')})`, 'i')
-      nor.push({ itemNo: { $regex: big } })
-    }
-    if (allParts.contains.length) {
-      const anyFrag = new RegExp(`(${allParts.contains.map(escapeRx).join('|')})`, 'i')
-      nor.push({ name: { $regex: anyFrag } })
-    }
-    // If we have nothing to negate, fall back to {} (rare)
-    return nor.length ? { $nor: nor } : {}
-  }
-
-  // Normal named theme
-  const t = themeMap[lc] || { prefixes: [], contains: [] }
-  return orFromThemeParts(t)
+function normalizeLower(s?: string) {
+  return (s || '').toString().toLowerCase()
 }
 
-function collectAllThemePartsExcluding(excludeSlug: string) {
-  const prefixes: string[] = []
-  const contains: string[] = []
-  for (const [slug, parts] of Object.entries(themeMap)) {
-    if (slug === excludeSlug) continue
-    if (parts.prefixes?.length) prefixes.push(...parts.prefixes)
-    if (parts.contains?.length) contains.push(...parts.contains)
-  }
-  return { prefixes: Array.from(new Set(prefixes)), contains: Array.from(new Set(contains)) }
+function firstPrefix(itemNo?: string) {
+  const id = (itemNo || '').toLowerCase()
+  if (!id) return ''
+  const letters = id.replace(/[^a-z0-9]/g, '')
+  if (letters.length >= 3 && /\d/.test(letters[2])) return letters.slice(0, 3)
+  return letters.slice(0, 3)
 }
 
-function orFromThemeParts(parts: { prefixes?: string[]; contains?: string[] }) {
-  const or: any[] = []
-  if (parts.prefixes?.length) {
-    const rx = new RegExp(`^(${parts.prefixes.map(escapeRx).join('|')})`, 'i')
-    or.push({ itemNo: { $regex: rx } })
+function mapTheme(itemNo?: string, name?: string) {
+  const nx = firstPrefix(itemNo)
+  const lowerName = normalizeLower(name)
+  const mp: Record<string, string> = (overrides as any).mapPrefix || {}
+  if (nx && mp[nx]) return mp[nx]
+  const contains: Record<string, string> = (overrides as any).mapContains || {}
+  for (const needle in contains) {
+    if (lowerName.includes(needle)) return contains[needle]
   }
-  if (parts.contains?.length) {
-    const rx = new RegExp(`(${parts.contains.map(escapeRx).join('|')})`, 'i')
-    or.push({ name: { $regex: rx } })
-  }
-  return or.length ? { $or: or } : {}
+  return 'other'
 }
 
-function escapeRx(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-// ---- API --------------------------------------------------------------------
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Data | any>) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse<Json | any>) {
   try {
-    await dbConnect(process.env.MONGODB_URI!)
+    await dbConnect()
 
-    const {
-      type = 'MINIFIG',
-      page = '1',
-      limit = '36',
-      q = '',
-      cond = '',
-      onlyInStock = '',
-      theme = '__ALL__',
-      series = '',
-    } = req.query as Record<string, string>
+    const type = (req.query.type as string) || 'MINIFIG'
+    const page = Math.max(1, Number(req.query.page ?? 1))
+    const limit = Math.max(1, Math.min(72, Number(req.query.limit ?? 36)))
+    const q = (req.query.q as string) || ''
+    const cond = (req.query.cond as string) || '' // '' | 'N' | 'U'
+    const theme = (req.query.theme as string) || '' // '', 'other', 'star-wars', etc.
+    const series = (req.query.series as string) || '' // e.g. '1','2',...
+    const onlyInStock = String(req.query.onlyInStock ?? '1') !== '0'
 
-    const pg = Math.max(1, Number(page) || 1)
-    const lim = Math.max(1, Math.min(120, Number(limit) || 36))
-    const skip = (pg - 1) * lim
+    // Base DB filter (sellable + optional condition + text)
+    const match: any = { type }
 
-    const match: any = {}
-    if (type) match.type = String(type).toUpperCase()
+    if (cond === 'N') match.condition = 'N'
+    if (cond === 'U') match.condition = 'U'
 
-    // search
-    const nameNo = String(q || '').trim()
-    if (nameNo) {
-      match.$or = [
-        { name: { $regex: new RegExp(escapeRx(nameNo), 'i') } },
-        { itemNo: { $regex: new RegExp(escapeRx(nameNo), 'i') } },
+    if (onlyInStock) {
+      match.qty = { $gt: 0 }
+      match.$and = [
+        ...(match.$and || []),
+        {
+          $or: [
+            { status: { $exists: false } },
+            { status: { $eq: '' } },
+            { status: null },
+            { status: { $not: /S/ } }, // remove Stockroom
+          ],
+        },
+        {
+          $or: [
+            { status: { $exists: false } },
+            { status: { $eq: '' } },
+            { status: null },
+            { status: { $not: /R/ } }, // remove Reserved
+          ],
+        },
       ]
     }
 
-    // condition
-    if (cond === 'N' || cond === 'U') match.condition = cond
-
-    // stock
-    if (isTruthy(onlyInStock)) {
-      match.$or = (match.$or || []).concat([
-        { qty: { $gt: 0 } },
-        { quantity: { $gt: 0 } },
-        { stock: { $gt: 0 } },
-        { inStock: true },
-      ])
+    if (q) {
+      const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+      match.$or = [{ name: rx }, { itemNo: rx }]
     }
 
-    // theme & series
-    const themeFilter = buildThemeMatch(theme, series)
-    Object.assign(match, themeFilter)
+    // Pull all minimal fields we need to compute theme/series reliably,
+    // then filter/paginate in memory (1685 docs is fine).
+    const fields = {
+      itemNo: 1,
+      name: 1,
+      price: 1,
+      condition: 1,
+      imageUrl: 1,
+      inventoryId: 1,
+      qty: 1,
+      status: 1,
+      createdAt: 1
+    }
 
-    // Count + fetch
-    const [count, items] = await Promise.all([
-      Product.countDocuments(match),
-      Product.find(match)
-        .sort({ name: 1, itemNo: 1 })
-        .skip(skip)
-        .limit(lim)
-        .lean(),
-    ])
+    const all = await Product.find(match, fields).sort({ createdAt: -1 }).lean<Item[]>()
 
-    res.status(200).json({ count, items })
+    // Theme filter (uses same mapping as /api/themes)
+    let filtered = all
+    if (theme && theme !== '__ALL__') {
+      filtered = filtered.filter(d => mapTheme(d.itemNo, d.name) === theme)
+    }
+
+    // Series filter (applies inside Collectible Minifigures)
+    if (series) {
+      const sn = String(series).trim()
+      const rxSeries = new RegExp(`\\bSeries\\s*${sn}\\b`, 'i')
+      filtered = filtered.filter(d => {
+        const isCMF = mapTheme(d.itemNo, d.name) === 'collectible-minifigures'
+        if (!isCMF) return false
+        const nm = normalizeLower(d.name)
+        return rxSeries.test(nm)
+      })
+    }
+
+    const count = filtered.length
+    const start = (page - 1) * limit
+    const items = filtered.slice(start, start + limit)
+
+    res.status(200).json({ count, items, page, limit })
   } catch (err: any) {
-    console.error('products_api_error', err)
-    res.status(500).json({ error: 'products_api_error', message: err?.message || String(err) })
+    console.error('products error', err)
+    res.status(500).json({ error: 'fatal', message: err?.message || 'unknown' })
   }
 }
