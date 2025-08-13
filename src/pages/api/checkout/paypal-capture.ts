@@ -1,240 +1,225 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import mongoose from 'mongoose'
-import fetch from 'node-fetch'
+import dbConnect from '@/lib/dbConnect'
+import Product from '@/models/Product'
+import Order from '@/models/Order'
 
-// ----- DB -----
-const MONGODB_URI = process.env.MONGODB_URI as string
-if (!MONGODB_URI) throw new Error('MONGODB_URI missing')
+const PP_BASE = 'https://api-m.paypal.com' // live (you already run live)
 
-const ProductSchema = new mongoose.Schema(
-  {
-    inventoryId: { type: Number, index: true },
-    itemNo: String,
-    name: String,
-    price: Number,
-    qty: Number,
-    imageUrl: String,
-    type: String,
-  },
-  { strict: false, collection: 'products' }
-)
-
-const OrderSchema = new mongoose.Schema(
-  {
-    provider: { type: String, default: 'paypal' },
-    orderId: { type: String, index: true },
-    captureIds: [String],
-    payer: {
-      email: String,
-      name: String,
-      payerId: String,
-    },
-    amount: {
-      currency: String,
-      value: Number,
-    },
-    items: [
-      {
-        inventoryId: Number,
-        id: String,
-        name: String,
-        qty: Number,
-        price: Number,
-      },
-    ],
-    shipping: {
-      name: String,
-      address: Object,
-    },
-    raw: Object,
-    createdAt: { type: Date, default: Date.now },
-  },
-  { collection: 'orders' }
-)
-
-const Product =
-  (mongoose.models.Product as mongoose.Model<any>) ||
-  mongoose.model('Product', ProductSchema)
-const Order =
-  (mongoose.models.Order as mongoose.Model<any>) ||
-  mongoose.model('Order', OrderSchema)
-
-async function db() {
-  if (mongoose.connection.readyState !== 1) {
-    await mongoose.connect(MONGODB_URI)
-  }
+function authHeader() {
+  const id = process.env.PAYPAL_CLIENT_ID || ''
+  const secret = process.env.PAYPAL_CLIENT_SECRET || ''
+  const basic = Buffer.from(`${id}:${secret}`).toString('base64')
+  return { Authorization: `Basic ${basic}`, 'Content-Type': 'application/json' }
 }
 
-// ----- Email (optional, fire-and-forget) -----
-async function sendEmailSummary(order: any) {
-  const host = process.env.SMTP_HOST
-  const user = process.env.SMTP_USER
-  const pass = process.env.SMTP_PASS
-  const from = process.env.SALES_EMAIL_FROM || user
-  const to = process.env.SALES_EMAIL_TO || user
-  if (!host || !user || !pass || !from || !to) return
-
-  const nodemailer = (await import('nodemailer')).default
-  const transporter = nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT || 587) === 465,
-    auth: { user, pass },
+async function paypalGetOrder(orderId: string) {
+  const r = await fetch(`${PP_BASE}/v2/checkout/orders/${orderId}`, {
+    method: 'GET',
+    headers: authHeader(),
+    cache: 'no-store',
   })
-
-  const lines = [
-    `Order: ${order.orderId}`,
-    `Capture(s): ${order.captureIds.join(', ')}`,
-    `Payer: ${order.payer.name} <${order.payer.email}>`,
-    `Amount: ${order.amount.currency} ${order.amount.value.toFixed(2)}`,
-    '',
-    'Items:',
-    ...order.items.map(
-      (it: any) => `  - ${it.name}  x${it.qty}  @ ${order.amount.currency} ${Number(it.price).toFixed(2)}`
-    ),
-  ].join('\n')
-
-  await transporter.sendMail({
-    from,
-    to,
-    subject: `New order ${order.orderId}`,
-    text: lines,
-  })
+  if (!r.ok) throw new Error(`paypal_get_order_failed ${r.status}`)
+  return r.json()
 }
 
-// ----- PayPal helpers -----
-const PP_ENV = (process.env.PAYPAL_ENV || 'live').toLowerCase()
-const PP_CLIENT = process.env.PAYPAL_CLIENT_ID || ''
-const PP_SECRET = process.env.PAYPAL_CLIENT_SECRET || ''
-const PP_BASE =
-  PP_ENV === 'sandbox'
-    ? 'https://api-m.sandbox.paypal.com'
-    : 'https://api-m.paypal.com'
-
-async function paypalToken() {
-  const auth = Buffer.from(`${PP_CLIENT}:${PP_SECRET}`).toString('base64')
-  const r = await fetch(`${PP_BASE}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: 'grant_type=client_credentials',
-  })
-  if (!r.ok) throw new Error(`paypal_token_failed ${r.status}`)
-  const j = (await r.json()) as any
-  return j.access_token as string
-}
-
-async function captureOrder(orderId: string) {
-  const token = await paypalToken()
+async function paypalCapture(orderId: string) {
   const r = await fetch(`${PP_BASE}/v2/checkout/orders/${orderId}/capture`, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'PayPal-Request-Id': `cap-${orderId}`, // idempotency
-    },
+    headers: authHeader(),
+    cache: 'no-store',
     body: JSON.stringify({}),
   })
-  const body = await r.json()
+  // If already captured, PayPal can 422 with ORDER_ALREADY_CAPTURED – fallback to GET
   if (!r.ok) {
-    const code = (body && body.name) || r.status
-    throw new Error(`paypal_capture_failed ${code}`)
+    const txt = await r.text().catch(() => '')
+    if (r.status === 422 && txt.includes('ORDER_ALREADY_CAPTURED')) {
+      return paypalGetOrder(orderId)
+    }
+    throw new Error(`paypal_capture_failed ${r.status} ${txt}`)
   }
-  return body
+  return r.json()
 }
 
-// Extract a simple order shape we can store & email
-function normalizeCapture(capture: any) {
-  const purchase = (capture.purchase_units && capture.purchase_units[0]) || {}
-  const payments = purchase.payments || {}
-  const captures = payments.captures || []
-  const captureIds: string[] = captures.map((c: any) => c.id)
-
-  const amount = captures[0]?.amount || purchase.amount || {}
-  const payer = {
-    email: capture.payer?.email_address || '',
-    name:
-      capture.payer?.name?.given_name || capture.payer?.name?.surname
-        ? `${capture.payer?.name?.given_name || ''} ${capture.payer?.name?.surname || ''}`.trim()
-        : '',
-    payerId: capture.payer?.payer_id || '',
-  }
-
-  // If you included items when creating the order, PayPal echoes them here
-  // (and we also try to read our own metadata fields if present)
-  const items = (purchase.items || []).map((it: any) => ({
-    inventoryId:
-      typeof it.custom_id === 'string' && /^\d+$/.test(it.custom_id)
-        ? Number(it.custom_id)
+function trim(val: any) {
+  try {
+    // Keep only what we need to troubleshoot; avoid storing full payloads forever
+    const pu = val?.purchase_units?.[0] || {}
+    const capture =
+      pu?.payments?.captures?.[0] ||
+      val?.purchase_units?.[0]?.payments?.captures?.[0]
+    return {
+      id: val?.id,
+      intent: val?.intent,
+      status: val?.status,
+      purchase_units: [
+        {
+          reference_id: pu?.reference_id,
+          amount: pu?.amount,
+          payee: { merchant_id: pu?.payee?.merchant_id },
+          shipping: pu?.shipping,
+          items: pu?.items,
+          payments: {
+            captures: capture
+              ? [
+                  {
+                    id: capture.id,
+                    status: capture.status,
+                    amount: capture.amount,
+                    create_time: capture.create_time,
+                    update_time: capture.update_time,
+                  },
+                ]
+              : [],
+          },
+        },
+      ],
+      payer: val?.payer
+        ? {
+          email_address: val?.payer?.email_address,
+          payer_id: val?.payer?.payer_id,
+          name: val?.payer?.name,
+          address: val?.payer?.address,
+        }
         : undefined,
-    id: it.sku || it.custom_id || it.name,
-    name: it.name,
-    qty: Number(it.quantity || 1),
-    price: Number(it.unit_amount?.value || it.price || 0),
-  }))
-
-  const shipping = {
-    name: purchase.shipping?.name?.full_name || '',
-    address: purchase.shipping?.address || null,
+    }
+  } catch {
+    return val
   }
+}
 
-  return {
-    orderId: capture.id,
-    captureIds,
-    payer,
-    amount: {
-      currency: amount.currency_code || 'AUD',
-      value: Number(amount.value || 0),
-    },
-    items,
-    shipping,
-    raw: capture,
-  }
+function parseNumber(n: any) {
+  const v = typeof n === 'string' ? parseFloat(n) : Number(n || 0)
+  return isFinite(v) ? v : 0
+}
+
+function toInt(n: any) {
+  const x = parseInt(String(n), 10)
+  return isFinite(x) ? x : undefined
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST')
+    return res.status(405).json({ error: 'method_not_allowed' })
+  }
+
+  const { orderId } = req.body || {}
+  if (!orderId) {
+    return res.status(400).json({ error: 'missing_orderId' })
+  }
+
   try {
-    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
-    const { orderId } = (req.body || {}) as { orderId?: string }
-    if (!orderId) return res.status(400).json({ error: 'missing_orderId' })
+    await dbConnect()
 
-    await db()
+    // 1) Capture (or load) order from PayPal
+    const cap = await paypalCapture(orderId)
 
-    // 1) Capture on PayPal
-    const cap = await captureOrder(orderId)
+    // 2) Extract captureId / items / payer / totals
+    const pu = cap?.purchase_units?.[0] || {}
+    const capture = pu?.payments?.captures?.[0]
+    const captureId = capture?.id || null
+    const status = (capture?.status || cap?.status || 'COMPLETED') as string
 
-    // 2) Normalize + save
-    const order = normalizeCapture(cap)
-    // idempotent: upsert by orderId
-    const saved = await Order.findOneAndUpdate(
-      { orderId: order.orderId },
-      order,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).lean()
+    const currency = capture?.amount?.currency_code || pu?.amount?.currency_code || process.env.NEXT_PUBLIC_CURRENCY || 'AUD'
+    const itemsRaw: any[] = Array.isArray(pu?.items) ? pu.items : []
 
-    // 3) Decrement stock if we have inventoryId for any line
-    for (const it of order.items) {
-      if (it.inventoryId) {
-        await Product.updateOne(
-          { inventoryId: it.inventoryId },
-          { $inc: { qty: -Number(it.qty || 1) } }
-        )
+    const items = itemsRaw.map((it) => {
+      const qty = toInt(it.quantity) || 1
+      const price = parseNumber(it.unit_amount?.value)
+      const sku = String(it.sku ?? '')
+      const inventoryId = toInt(sku)
+      return {
+        inventoryId,
+        productId: undefined,
+        sku,
+        name: it.name,
+        price,
+        qty,
+        imageUrl: undefined,
       }
+    })
+
+    const itemsTotal = items.reduce((s, i) => s + i.price * i.qty, 0)
+    const postage = parseNumber(pu?.amount?.breakdown?.shipping?.amount?.value)
+    const shipping = 0 // if you also pass a custom shipping option, map it here
+    const total = parseNumber(capture?.amount?.value || pu?.amount?.value)
+
+    const payer = {
+      payerId: cap?.payer?.payer_id || '',
+      email: cap?.payer?.email_address || '',
+      givenName: cap?.payer?.name?.given_name || '',
+      surname: cap?.payer?.name?.surname || '',
+      country: cap?.payer?.address?.country_code || '',
     }
 
-    // 4) Fire-and-forget email (don’t block response)
-    sendEmailSummary(order).catch(() => {})
+    // 3) Decrement stock (best-effort, per line)
+    const adjustResults: Array<{ inventoryId?: number; ok: boolean; before?: number; after?: number }> = []
+
+    for (const li of items) {
+      if (!li.inventoryId) {
+        adjustResults.push({ inventoryId: undefined, ok: false })
+        continue
+      }
+      // Find by inventoryId and reduce qty atomically if possible
+      const prod = await Product.findOne({ inventoryId: li.inventoryId }).lean()
+      if (!prod) {
+        adjustResults.push({ inventoryId: li.inventoryId, ok: false })
+        continue
+      }
+      const before = Number(prod.qty || 0)
+      const dec = Math.min(before, li.qty)
+      const updated = await Product.findOneAndUpdate(
+        { _id: prod._id, qty: { $gte: dec } },
+        { $inc: { qty: -dec } },
+        { new: true }
+      ).lean()
+
+      adjustResults.push({
+        inventoryId: li.inventoryId,
+        ok: !!updated,
+        before,
+        after: updated ? Number(updated.qty || 0) : before,
+      })
+    }
+
+    // 4) Save local Order document
+    const saved = await Order.create({
+      provider: 'paypal',
+      orderId,
+      captureId,
+      status,
+      items,
+      totals: {
+        items: itemsTotal,
+        postage,
+        shipping,
+        total,
+        currency,
+      },
+      payer,
+      raw: trim(cap),
+    })
+
+    // 5) Fire-and-forget: send confirmation email if you created that endpoint
+    ;(async () => {
+      try {
+        if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+          await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/checkout/send-confirmation?orderId=${encodeURIComponent(saved._id.toString())}`)
+        }
+      } catch { /* ignore */ }
+    })()
 
     return res.status(200).json({
       ok: true,
-      provider: 'paypal',
-      orderId: order.orderId,
-      captureIds: order.captureIds,
-      saved: true,
+      orderId,
+      captureId,
+      status,
+      totals: { items: itemsTotal, postage, shipping, total, currency },
+      stockAdjustments: adjustResults,
+      savedId: saved._id,
     })
   } catch (err: any) {
+    console.error('paypal-capture error', err?.message || err)
     return res.status(500).json({ error: 'capture_failed', message: String(err?.message || err) })
   }
 }

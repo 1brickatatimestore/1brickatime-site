@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 export type CartItem = {
   id: string
@@ -6,104 +6,74 @@ export type CartItem = {
   price: number
   qty: number
   imageUrl?: string
+  stock?: number // NEW: available stock so we can clamp
 }
 
-type CartState = {
+type CartCtx = {
   items: CartItem[]
+  count: number
+  total: number
   add: (item: CartItem) => void
-  removeItem: (id: string) => void
   setQty: (id: string, qty: number) => void
+  remove: (id: string) => void
   clear: () => void
-  totalItems: number
-  subtotal: number
-  isReady: boolean
+  getQty: (id: string) => number
 }
 
-const Ctx = createContext<CartState | undefined>(undefined)
-
-function readLS(key: string): CartItem[] {
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return []
-    const arr = JSON.parse(raw)
-    if (!Array.isArray(arr)) return []
-    // sanitize
-    return arr
-      .map((x) => ({
-        id: String(x.id ?? ''),
-        name: String(x.name ?? ''),
-        price: Number(x.price ?? 0),
-        qty: Math.max(0, Number(x.qty ?? 0)),
-        imageUrl: x.imageUrl ? String(x.imageUrl) : undefined,
-      }))
-      .filter((x) => x.id && x.qty > 0)
-  } catch {
-    return []
-  }
-}
-
+const Ctx = createContext<CartCtx | null>(null)
 const LS_KEY = 'cart:v1'
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([])
-  const [ready, setReady] = useState(false)
-  const firstSave = useRef(true)
 
-  // Hydrate from localStorage (client only)
+  // load
   useEffect(() => {
-    const init = readLS(LS_KEY)
-    setItems(init)
-    setReady(true)
-  }, [])
-
-  // Persist to localStorage
-  useEffect(() => {
-    if (!ready) return
     try {
-      // avoid writing immediately on first hydration when nothing changed
-      if (firstSave.current) {
-        firstSave.current = false
+      const raw = localStorage.getItem(LS_KEY)
+      if (raw) setItems(JSON.parse(raw))
+    } catch {}
+  }, [])
+  // save
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(items))
+    } catch {}
+  }, [items])
+
+  const getQty = (id: string) => items.find(i => i.id === id)?.qty || 0
+
+  const add = (item: CartItem) => {
+    setItems(prev => {
+      const existing = prev.find(i => i.id === item.id)
+      const max = typeof item.stock === 'number' ? Math.max(0, item.stock) : Infinity
+      if (existing) {
+        const nextQty = Math.min(max, existing.qty + (item.qty || 1))
+        return prev.map(i => (i.id === item.id ? { ...i, qty: nextQty, stock: item.stock ?? i.stock } : i))
       } else {
-        localStorage.setItem(LS_KEY, JSON.stringify(items))
+        const clamped = Math.min(max, item.qty || 1)
+        return [...prev, { ...item, qty: clamped }]
       }
-    } catch {
-      /* ignore */
-    }
-  }, [items, ready])
+    })
+  }
 
-  const api = useMemo<CartState>(() => {
-    const add = (item: CartItem) => {
-      setItems((prev) => {
-        const idx = prev.findIndex((p) => p.id === item.id)
-        if (idx >= 0) {
-          const next = [...prev]
-          next[idx] = { ...next[idx], qty: next[idx].qty + item.qty }
-          return next
-        }
-        return [...prev, { ...item }]
+  const setQty = (id: string, qty: number) => {
+    setItems(prev =>
+      prev.map(i => {
+        if (i.id !== id) return i
+        const max = typeof i.stock === 'number' ? Math.max(0, i.stock) : Infinity
+        return { ...i, qty: Math.max(0, Math.min(max, qty)) }
       })
-    }
+    )
+  }
 
-    const removeItem = (id: string) => {
-      setItems((prev) => prev.filter((p) => p.id !== id))
-    }
+  const remove = (id: string) => setItems(prev => prev.filter(i => i.id !== id))
+  const clear = () => setItems([])
 
-    const setQty = (id: string, qty: number) => {
-      setItems((prev) => {
-        if (qty <= 0) return prev.filter((p) => p.id !== id)
-        return prev.map((p) => (p.id === id ? { ...p, qty } : p))
-      })
-    }
+  const count = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items])
+  const total = useMemo(() => items.reduce((s, i) => s + i.qty * i.price, 0), [items])
 
-    const clear = () => setItems([])
-
-    const totalItems = items.reduce((n, it) => n + (Number(it.qty) || 0), 0)
-    const subtotal = items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 0), 0)
-
-    return { items, add, removeItem, setQty, clear, totalItems, subtotal, isReady: ready }
-  }, [items, ready])
-
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>
+  const value: CartCtx = { items, count, total, add, setQty, remove, clear, getQty }
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
 export function useCart() {
