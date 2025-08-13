@@ -1,116 +1,149 @@
-/* ─────────────── LOCKED LAYOUT (edge-to-edge header/footer, single left rail) ─────────────── */
-
-.shell {
-  /* Local design tokens (avoid :root to keep CSS Modules happy) */
-  --rail-w: 64px;        /* left LEGO rail width (keep 56–72) */
-  --header-h: 56px;      /* header height */
-  --footer-h: 110px;     /* footer height */
-  --blue: #1f5376;       /* header/footer */
-  --cream: #e9e3db;      /* page background */
-  --text: #1e1e1e;
-
-  background: var(--cream);
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  color: var(--text);
+/* ---- Grid shell with a fixed left rail ---- */
+.shell{
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: var(--rail) 1fr;
+  grid-template-rows: auto 1fr auto;
 }
 
-/* Left rail: fixed, behind everything else */
-.rail {
-  position: fixed;
-  left: 0;
+/* ---- Left rail (uses your file: /stud-rail.png) ---- */
+.rail{
+  grid-row: 1 / span 3;
+  grid-column: 1;
+  background:
+    url('/stud-rail.png') left top repeat-y;        /* your provided filename */
+  /* Fallback dots if the image is missing */
+  background-color: #b42020;
+  position: relative;
+}
+
+/* ---- Header ---- */
+.header{
+  grid-column: 2;
+  grid-row: 1;
+  background: var(--header-bg);
+  color: var(--header-ink);
+  position: sticky;
   top: 0;
-  bottom: 0;
-  width: var(--rail-w);
-  z-index: 0;           /* sits behind header/main/footer */
-  background: #9c2b2b;  /* safety fill behind PNG */
+  z-index: 20;
+  box-shadow: 0 2px 0 rgba(0,0,0,.08);
 }
-
-/* The PNG fills the rail, showing full studs top-to-bottom */
-.railImg {
-  object-fit: cover;
-  object-position: left top;
-}
-
-/* Full-width header (blue), shifted by rail width */
-.header {
-  margin-left: var(--rail-w);
-  height: var(--header-h);
-  background: var(--blue);
-  color: #fff;
-  display: flex;
+.headerInner{
+  height: 56px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  position: relative;
-  z-index: 1;
+  gap: 16px;
 }
 
-/* Nav content; feel free to tweak max-width */
-.nav {
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
+/* Brand block */
+.brand{
+  display: inline-flex;
   align-items: center;
-  padding: 0 20px;
-}
-
-.brand {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+  gap: 12px;
+  color: var(--header-ink);
   font-weight: 700;
+  letter-spacing: .2px;
+}
+.brandLogo{
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    url('/logo.png') center/contain no-repeat,
+    rgba(255,255,255,.2);
+  box-shadow: 0 1px 0 rgba(0,0,0,.25);
+}
+.brandName{
+  white-space: nowrap;
 }
 
-.links {
+/* Nav */
+.nav{
   display: flex;
-  gap: 14px;
-  align-items: center;
+  gap: 24px;
+  justify-content: center;
 }
-
-.links a {
-  color: #ffd969;
-  font-weight: 700;
+.nav a{
+  color: var(--header-ink);
+  opacity: .95;
+  padding: 6px 8px;
+  border-radius: 6px;
 }
+.nav a:hover{ background: rgba(255,255,255,.08); }
 
 /* Main area */
-.main {
-  margin-left: var(--rail-w);
-  padding: 24px 24px 124px; /* bottom padding to clear footer */
-  flex: 1 0 auto;
-  position: relative;
-  z-index: 1;
+.main{
+  grid-column: 2;
+  grid-row: 2;
+  padding: 24px 0 56px;
 }
 
-/* Full-width footer (blue) */
-.footer {
-  margin-left: var(--rail-w);
-  height: var(--footer-h);
-  background: var(--blue);
-  display: flex;
+/* ---- Footer ---- */
+.footer{
+  grid-column: 2;
+  grid-row: 3;
+  color: var(--footer-ink);
+  background: var(--footer-bg);
+  margin-top: 24px;
+  box-shadow: 0 -2px 0 rgba(0,0,0,.06);
+}
+.footerInner{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
   align-items: center;
+  padding: 12px 0;
+}
+.copy{ opacity: .9; font-size: 14px; }
+.links{ display: flex; gap: 20px; }
+.links a{ color: var(--footer-ink); opacity: .95; }
+.links a:hover{ text-decoration: underline; }
+
+/* CTA bar like in your screenshot */
+.ctaBar{
+  display: flex;
   justify-content: center;
-  margin-top: auto;   /* pins to bottom */
+  padding: 14px 0 18px;
+  background: linear-gradient(0deg, rgba(0,0,0,.06), rgba(0,0,0,0)) ;
+}
+.ctaButton{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: 0;
+  cursor: pointer;
+  background: #1a5d74;
+  color: #fff;
+  box-shadow: 0 2px 0 rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.15);
+}
+.ctaButton:hover{ filter: brightness(1.05); }
+
+.sunflower{
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #ffd24a 0 45%, #c99b2a 46% 100%);
   position: relative;
-  z-index: 1;
-  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.06) inset;
+}
+.sunflower::before,
+.sunflower::after{
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background:
+    radial-gradient(circle at 50% 0, transparent 8px, #ffd24a 9px 10px, transparent 11px) 0 0/10px 10px repeat;
+  opacity: .85;
+}
+.sunflower::after{
+  transform: rotate(45deg);
+  opacity: .65;
 }
 
-/* Center plaque image inside footer bar */
-.footerImg {
-  display: block;
-  height: 68%;
-  width: auto;
-  max-width: min(640px, 82vw);
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-
-/* Small screens */
-@media (max-width: 900px) {
-  .nav { padding: 0 14px; }
-  .main { padding: 18px 18px 110px; }
-  .footer { height: 100px; }
+/* ---- Cart bubble position (float, top-right of header) ---- */
+.headerInner :global(.cart-float){
+  margin-left: 12px;
 }
