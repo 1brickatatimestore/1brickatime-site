@@ -1,136 +1,114 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import dbConnect from '@/lib/dbConnect'
-import mongoose, { Schema, model, models } from 'mongoose'
+import Product from '@/models/Product'
 
-const OrderSchema = new Schema({
-  orderId: String,
-  captureId: String,
-  status: String,
-  currency: String,
-  totals: { items: Number, shipping: Number, total: Number },
-  payer: { name: String, email: String },
-  items: [{
-    id: String,
-    productId: String,
-    inventoryId: Number,
-    name: String,
-    price: Number,
-    qty: Number,
-    imageUrl: String,
-  }],
-}, { timestamps: true })
-const Order = models.Order || model('Order', OrderSchema, 'orders')
+const PP_BASE = process.env.PAYPAL_ENV === 'live'
+  ? 'https://api.paypal.com'
+  : 'https://api.sandbox.paypal.com'
 
-const ProductSchema = new Schema({
-  inventoryId: { type: Number, index: true },
-  name: String,
-  itemNo: String,
-  price: Number,
-  qty: Number,
-  type: String,
-}, { timestamps: true })
-const Product = models.Product || model('Product', ProductSchema, 'products')
-
-function paypalBase() {
-  return (process.env.PAYPAL_ENV || 'live') === 'live'
-    ? 'https://api-m.paypal.com'
-    : 'https://api-m.sandbox.paypal.com'
-}
-
-async function getAccessToken() {
-  const cid = process.env.PAYPAL_CLIENT_ID!
-  const sec = process.env.PAYPAL_CLIENT_SECRET!
-  const r = await fetch(`${paypalBase()}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: { 'Authorization': 'Basic ' + Buffer.from(`${cid}:${sec}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=client_credentials',
-  })
-  if (!r.ok) {
-    const t = await r.text()
-    throw new Error(`paypal_token_failed ${r.status}: ${t}`)
-  }
-  const j:any = await r.json()
-  return j.access_token as string
-}
-
-async function getOrder(accessToken: string, orderId: string) {
-  const r = await fetch(`${paypalBase()}/v2/checkout/orders/${orderId}`, {
-    headers: { 'Authorization': `Bearer ${accessToken}` }
-  })
-  if (!r.ok) throw new Error(`paypal_get_order_failed ${r.status}`)
-  return r.json() as any
-}
-
-async function refundCapture(accessToken: string, captureId: string) {
-  const r = await fetch(`${paypalBase()}/v2/payments/captures/${captureId}/refund`, {
+// Minimal PayPal token fetch
+async function getPayPalToken() {
+  const id = process.env.PAYPAL_CLIENT_ID || ''
+  const secret = process. PAYPAL_CLIENT_SECRET_REDACTED|| ''
+  const resp = await fetch(`${PP_BASE}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${accessToken}`,
+      'Authorization': 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: 'grant_type=client_credentials'
+  })
+  if (!resp.ok) throw new Error(`paypal_token_failed ${resp.status}`)
+  const json = await resp.json()
+  return json.access_token as string
+}
+
+async function refundCapture(access: string, captureId: string) {
+  const r = await fetch(`${PP_BASE}/v2/payments/captures/${captureId}/refund`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${access}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({})
   })
-  const j:any = await r.json()
-  if (!r.ok) {
-    const msg = j?.name || j?.message || `paypal_refund_failed`
-    const det = j?.details?.[0]?.issue
-    throw new Error(`${msg}${det ? `:${det}`:''} (${r.status})`)
+  if (r.ok) return { ok: true, status: r.status, body: await r.json() }
+
+  // Handle already-refunded idempotently
+  const body = await r.json().catch(() => ({}))
+  const name = body?.name
+  const details = body?.details || []
+  const already = name === 'UNPROCESSABLE_ENTITY' &&
+                  details.some((d: any) => (d.issue || '').includes('CAPTURE_FULLY_REFUNDED'))
+
+  if (already) return { ok: true, alreadyRefunded: true, status: r.status, body }
+  return { ok: false, status: r.status, body }
+}
+
+type RestockItem = { inventoryId?: number; id?: string; qty: number }
+
+async function restockItems(payloadItems: RestockItem[]) {
+  await dbConnect(process.env.MONGODB_URI!)
+  const results: any[] = []
+  for (const it of payloadItems) {
+    const qty = Number(it.qty)
+    if (!qty || (!it.inventoryId && !it.id)) {
+      results.push({ ok: false, reason: 'bad_item', item: it })
+      continue
+    }
+    const q: any = it.inventoryId ? { inventoryId: it.inventoryId } : { _id: it.id }
+    const upd = await Product.updateOne(q, { $inc: { qty } })
+    results.push({ ok: upd.modifiedCount > 0, match: upd.matchedCount, modified: upd.modifiedCount, item: it })
   }
-  return j
+  return results
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Auth
+  const auth = req.headers.authorization || ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+    return res.status(401).json({ error: 'unauthorized' })
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'method_not_allowed' })
+  }
+
   try {
-    await dbConnect(process.env.MONGODB_URI!)
+    const captureId = String(req.query.captureId || '').trim()
+    const orderId = String(req.query.orderId || '').trim()
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+    const payloadItems: RestockItem[] = Array.isArray(body?.items) ? body.items : []
 
-    const captureId = String(req.query.captureId || '')
-    const orderId = String(req.query.orderId || '')
     if (!captureId && !orderId) {
-      return res.status(400).json({ error: 'missing_id', message: 'Provide captureId or orderId' })
+      return res.status(422).json({ error: 'missing_id', message: 'Provide captureId or orderId' })
     }
 
-    // 1) Locate the saved order (if any)
-    let orderDoc = null as any
-    if (captureId) orderDoc = await Order.findOne({ captureId }).lean()
-    if (!orderDoc && orderId) orderDoc = await Order.findOne({ orderId }).lean()
+    const access = await getPayPalToken()
+    const ops: any = { refunded: [], alreadyRefunded: [], restocked: [] }
 
-    // 2) If we only got orderId, resolve captureId from PayPal
-    let capId = captureId
-    const token = await getAccessToken()
-    if (!capId && orderId) {
-      const o = await getOrder(token, orderId)
-      capId = o?.purchase_units?.[0]?.payments?.captures?.[0]?.id
-      if (!capId) return res.status(404).json({ error: 'capture_not_found_for_order', orderId })
-    }
-
-    // 3) Refund on PayPal
-    const refund = await refundCapture(token, capId!)
-
-    // 4) Restock locally if we have an order doc with items
-    let restockedCount = 0
-    if (orderDoc?.items?.length) {
-      for (const it of orderDoc.items) {
-        const qty = Math.max(1, Number(it.qty || 1))
-        if (it.inventoryId) {
-          await Product.updateOne({ inventoryId: Number(it.inventoryId) }, { $inc: { qty } })
-          restockedCount += qty
-        } else if (it.productId) {
-          await Product.updateOne({ _id: new mongoose.Types.ObjectId(it.productId) }, { $inc: { qty } })
-          restockedCount += qty
-        } else if (it.id && /^[0-9a-f]{24}$/i.test(it.id)) {
-          await Product.updateOne({ _id: new mongoose.Types.ObjectId(it.id) }, { $inc: { qty } })
-          restockedCount += qty
-        }
+    if (captureId) {
+      const rr = await refundCapture(access, captureId)
+      if (!rr.ok) {
+        return res.status(422).json({ error: 'refund_restock_failed', message: `${rr.body?.name || 'paypal_error'}:${rr.body?.details?.[0]?.issue || ''} (${rr.status})` })
       }
+      if (rr.alreadyRefunded) ops.alreadyRefunded.push(captureId)
+      else ops.refunded.push(captureId)
     }
 
-    // 5) Update order status if present
-    if (orderDoc?._id) {
-      await Order.updateOne({ _id: orderDoc._id }, { $set: { status: 'REFUNDED', refund } })
+    // If you later want orderId flow, look up captures and loop them here.
+    // For now, restock only from client-provided items (since your site hasn’t saved orders yet).
+    if (payloadItems.length) {
+      const results = await restockItems(payloadItems)
+      ops.restocked = results
+    } else {
+      // No items provided; we can’t restock anything locally without saved order line-items.
+      ops.restocked = []
     }
 
-    res.json({ ok: true, refundedCaptureId: capId, restockedCount, refund })
-  } catch (err:any) {
-    res.status(500).json({ error: 'refund_restock_failed', message: err.message })
+    return res.json({ ok: true, ...ops })
+  } catch (err: any) {
+    return res.status(500).json({ error: 'refund_restock_failed', message: err?.message || String(err) })
   }
 }
