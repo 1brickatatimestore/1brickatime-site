@@ -1,149 +1,153 @@
+import { GetServerSideProps } from 'next'
 import Head from 'next/head'
-import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/router'
+import dbConnect from '@/lib/dbConnect'
+import Product from '@/models/Product'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
-  _id?: string
+  _id: string
   inventoryId?: number
-  name?: string
-  itemNo?: string
-  price?: number
+  itemNo: string
+  name: string
+  imageUrl: string
+  price: number
   condition?: string
-  imageUrl?: string
-  remarks?: string
-  description?: string
+  qty: number
+  remarks?: string | null
+  description?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
-type Props = { item: Item | null }
+type PageProps = { item: Item | null }
 
-export default function MinifigDetail({ item }: Props) {
-  const router = useRouter()
+export default function MinifigDetailPage({ item }: PageProps) {
   const { add } = useCart()
 
   if (!item) {
     return (
       <main className="wrap">
-        <p>Item not found.</p>
-        <p><Link href="/minifigs">Back to minifigs</Link></p>
+        <p>Sorry, that minifig was not found.</p>
+        <Link className="btn" href="/minifigs">Back to Minifigs</Link>
+        <style jsx>{`.wrap{padding:24px}.btn{padding:8px 12px;border:1px solid #d0c6b9;border-radius:10px;background:#e7c36a}`}</style>
       </main>
     )
   }
 
-  const id = item.inventoryId ? String(item.inventoryId) : (item._id as string)
-
   return (
     <>
-      <Head><title>{item.name || item.itemNo || 'Minifig'} — 1 Brick at a Time</title></Head>
+      <Head><title>{item.name} — 1 Brick at a Time</title></Head>
       <main className="wrap">
-        <nav className="crumbs">
-          <Link href="/minifigs">← Back to minifigs</Link>
-        </nav>
+        <Link className="back" href="/minifigs">← Back to Minifigs</Link>
 
-        <section className="detail">
-          <div className="imgBox">
-            {item.imageUrl ? (
-              <Image
-                src={item.imageUrl}
-                alt={item.name || item.itemNo || 'Minifig'}
-                fill
-                sizes="(max-width: 900px) 90vw, 480px"
-                style={{ objectFit: 'contain' }}
-              />
-            ) : <div className="noImg">No image</div>}
+        <section className="card">
+          <div className="left">
+            <div className="thumb">
+              <img src={item.imageUrl} alt={item.name} />
+            </div>
           </div>
 
-          <div className="info">
-            <h1 className="title">{item.name || item.itemNo}</h1>
-            <div className="priceLine">
-              <span className="price">${Number(item.price ?? 0).toFixed(2)}</span>
-              {item.condition && <span className="cond">• {item.condition}</span>}
+          <div className="right">
+            <h1 className="title">{item.name}</h1>
+            <div className="sku">#{item.itemNo}</div>
+
+            <div className="priceRow">
+              <div className="price">${item.price.toFixed(2)}</div>
+              {item.condition && <div className="cond">{item.condition}</div>}
+              {typeof item.qty === 'number' && <div className="qty">{item.qty} in stock</div>}
             </div>
 
-            {(item.description || item.remarks) && (
-              <div className="desc">
-                {item.description && <p dangerouslySetInnerHTML={{ __html: item.description }} />}
-                {item.remarks && <p dangerouslySetInnerHTML={{ __html: item.remarks }} />}
+            {item.remarks && (
+              <div className="block">
+                <h3>Remarks</h3>
+                <p className="text">{item.remarks}</p>
               </div>
             )}
 
-            <div className="actions">
+            {item.description && (
+              <div className="block">
+                <h3>Description</h3>
+                <p className="text">{item.description}</p>
+              </div>
+            )}
+
+            <div className="row">
               <button
-                className="addBtn"
-                onClick={() =>
-                  add({
-                    id,
-                    name: item.name ?? item.itemNo ?? 'Minifig',
-                    price: Number(item.price ?? 0),
-                    qty: 1,
-                    imageUrl: item.imageUrl,
-                  })
-                }
+                className="btn"
+                onClick={() => add({
+                  id: (item.inventoryId ?? item._id).toString(),
+                  itemNo: item.itemNo,
+                  name: item.name,
+                  price: item.price,
+                  imageUrl: item.imageUrl,
+                  qty: 1,
+                  maxQty: Math.max(0, item.qty ?? 0),
+                })}
               >
                 Add to cart
               </button>
+              <Link className="btn ghost" href="/checkout">Go to checkout</Link>
             </div>
           </div>
         </section>
       </main>
 
       <style jsx>{`
-        .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
-        .crumbs { margin:4px 0 16px; }
-        .detail { display:grid; grid-template-columns: 1fr 1fr; gap:24px; align-items:start; }
-        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:12px; overflow:hidden; }
-        .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; }
-        .title { margin:0 0 8px; font-size:22px; }
-        .priceLine { font-size:18px; margin-bottom:12px; }
-        .price { font-weight:800; }
-        .cond { color:#444; }
-        .desc p { margin:0 0 8px; color:#222; }
-        .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:10px 16px; border-radius:10px; font-weight:800; cursor:pointer; }
-        @media (max-width:900px){ .detail{ grid-template-columns:1fr; } .wrap{ margin-left:64px; } }
+        .wrap { padding: 24px 16px; max-width: 1100px; margin: 0 auto; }
+        .back { display:inline-block; margin-bottom: 12px; }
+
+        .card { display: grid; grid-template-columns: 420px 1fr; gap: 24px; background:#f6efe6; border:1px solid #e3d9cc; border-radius: 14px; padding: 16px; }
+        @media (max-width: 900px){ .card{grid-template-columns: 1fr} }
+
+        .thumb { width: 100%; aspect-ratio: 1/1; border:1px solid #eadfce; border-radius: 12px; background: #fff; display:grid; place-items:center; overflow:hidden; }
+        .thumb img { width: 94%; height: 94%; object-fit: contain; }
+
+        .title { margin: 0 0 6px 0; font-size: 24px; line-height: 1.25; }
+        .sku { color:#6b6259; margin-bottom: 10px; }
+        .priceRow { display:flex; gap:12px; align-items:center; margin: 8px 0 16px; }
+        .price { font-size: 22px; font-weight: 700; }
+        .cond, .qty { font-size: 14px; color:#4b463f; }
+
+        .block h3 { margin: 14px 0 6px; }
+        .text { white-space: pre-wrap; }
+
+        .row { display:flex; gap: 8px; margin-top: 16px; }
+        .btn { cursor:pointer; padding: 10px 14px; border-radius: 10px; border:1px solid #d0c6b9; background:#e7c36a; }
+        .btn.ghost { background:#fff; }
       `}</style>
     </>
   )
 }
 
-export async function getServerSideProps(ctx: any) {
-  const { req, query } = ctx
-  const id = String(query.id || '')
-  const host = req?.headers?.host || 'localhost:3000'
-  const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
+export const getServerSideProps: GetServerSideProps<PageProps> = async ({ params }) => {
+  await dbConnect()
+  const id = String(params?.id || '')
+  const isNumeric = /^\d+$/.test(id)
 
-  async function fetchTry(url: string) {
-    const r = await fetch(url)
-    if (!r.ok) return null
-    const j = await r.json()
-    const arr =
-      (Array.isArray(j.items) && j.items) ||
-      (Array.isArray(j.inventory) && j.inventory) ||
-      (Array.isArray(j.results) && j.results) || []
-    return { raw: j, arr }
+  let doc = null
+  if (isNumeric) {
+    doc = await Product.findOne({ inventoryId: Number(id) }).lean()
+  } else {
+    // Try by Mongo _id first; fall back to itemNo if user pasted a number like "sw0123"
+    doc = await Product.findOne({ _id: id }).lean().catch(() => null)
+    if (!doc) doc = await Product.findOne({ itemNo: id }).lean()
   }
 
-  let found: Item | null = null
+  const item = doc ? {
+    _id: String(doc._id),
+    inventoryId: doc.inventoryId ?? null,
+    itemNo: doc.itemNo,
+    name: doc.name,
+    imageUrl: doc.imageUrl,
+    price: doc.price,
+    condition: doc.condition ?? null,
+    qty: typeof doc.qty === 'number' ? doc.qty : 0,
+    remarks: doc.remarks ?? null,
+    description: doc.description ?? null,
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : null,
+    updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : null,
+  } : null
 
-  // Try inventoryId filter
-  const f1 = await fetchTry(`${proto}://${host}/api/products?inventoryId=${encodeURIComponent(id)}&includeSoldOut=1&limit=1`)
-  if (f1?.arr?.[0]) found = f1.arr[0]
-
-  // Try Mongo _id
-  if (!found) {
-    const f2 = await fetchTry(`${proto}://${host}/api/products?_id=${encodeURIComponent(id)}&includeSoldOut=1&limit=1`)
-    if (f2?.arr?.[0]) found = f2.arr[0]
-  }
-
-  // Fallback: broad search, then exact match by id
-  if (!found) {
-    const f3 = await fetchTry(`${proto}://${host}/api/products?q=${encodeURIComponent(id)}&includeSoldOut=1&limit=50`)
-    const m = f3?.arr?.find((x: any) =>
-      String(x.inventoryId ?? '') === id || String(x._id ?? '') === id || String(x.itemNo ?? '') === id
-    )
-    if (m) found = m as Item
-  }
-
-  if (!found) return { props: { item: null } }
-  return { props: { item: found } }
+  return { props: { item } }
 }
