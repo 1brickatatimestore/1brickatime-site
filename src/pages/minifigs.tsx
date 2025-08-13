@@ -2,7 +2,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
@@ -13,6 +13,7 @@ type Item = {
   price?: number
   condition?: string
   imageUrl?: string
+  qty?: number
 }
 
 type Props = {
@@ -28,15 +29,7 @@ type Props = {
 }
 
 export default function MinifigsPage({
-  items,
-  count,
-  page,
-  limit,
-  q,
-  cond,
-  minPrice,
-  maxPrice,
-  sort,
+  items, count, page, limit, q, cond, minPrice, maxPrice, sort,
 }: Props) {
   const router = useRouter()
   const { add } = useCart()
@@ -59,31 +52,23 @@ export default function MinifigsPage({
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const q = String(fd.get('q') || '').trim()
-    const cond = String(fd.get('cond') || '')
-    const minPrice = String(fd.get('minPrice') || '').trim()
-    const maxPrice = String(fd.get('maxPrice') || '').trim()
-    const sort = String(fd.get('sort') || '').trim()
+    const _q = String(fd.get('q') || '').trim()
+    const _cond = String(fd.get('cond') || '')
+    const _min = String(fd.get('minPrice') || '').trim()
+    const _max = String(fd.get('maxPrice') || '').trim()
+    const _sort = String(fd.get('sort') || 'name_asc')
     const p = new URLSearchParams()
     p.set('page', '1')
     p.set('limit', String(limit))
-    if (q) p.set('q', q)
-    if (cond) p.set('cond', cond)
-    if (minPrice) p.set('minPrice', minPrice)
-    if (maxPrice) p.set('maxPrice', maxPrice)
-    if (sort) p.set('sort', sort)
+    if (_q) p.set('q', _q)
+    if (_cond) p.set('cond', _cond)
+    if (_min) p.set('minPrice', _min)
+    if (_max) p.set('maxPrice', _max)
+    if (_sort) p.set('sort', _sort)
     router.push(`/minifigs?${p.toString()}`)
   }
 
-  // Client-side sort (also passes through ?sort=... so the API can honor it later)
-  const sortedItems = useMemo(() => {
-    const arr = Array.isArray(items) ? [...items] : []
-    if (sort === 'price_asc') arr.sort((a, b) => Number(a.price ?? 0) - Number(b.price ?? 0))
-    if (sort === 'price_desc') arr.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0))
-    return arr
-  }, [items, sort])
-
-  const hasItems = sortedItems.length > 0
+  const hasItems = Array.isArray(items) && items.length > 0
 
   return (
     <>
@@ -106,32 +91,27 @@ export default function MinifigsPage({
             <option value="U">Used</option>
           </select>
 
-          <div className="priceGroup" title="Filter by price range">
-            <input
-              name="minPrice"
-              defaultValue={minPrice}
-              placeholder="Min $"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              className="priceInput"
-            />
-            <span className="dash">–</span>
-            <input
-              name="maxPrice"
-              defaultValue={maxPrice}
-              placeholder="Max $"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              className="priceInput"
-            />
-          </div>
+          <input
+            name="minPrice"
+            defaultValue={minPrice}
+            inputMode="decimal"
+            placeholder="Min $"
+            className="text w80"
+          />
+          <input
+            name="maxPrice"
+            defaultValue={maxPrice}
+            inputMode="decimal"
+            placeholder="Max $"
+            className="text w80"
+          />
 
-          <select name="sort" defaultValue={sort} className="select" title="Sort by price">
-            <option value="">Sort: Default</option>
-            <option value="price_asc">Price: Low → High</option>
-            <option value="price_desc">Price: High → Low</option>
+          <select name="sort" defaultValue={sort || 'name_asc'} className="select">
+            <option value="name_asc">Name A→Z</option>
+            <option value="name_desc">Name Z→A</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+            <option value="newest">Newest</option>
           </select>
 
           <button type="submit" className="btnPrimary">Apply</button>
@@ -145,7 +125,7 @@ export default function MinifigsPage({
         {hasItems ? (
           <>
             <div className="grid">
-              {sortedItems.map((p) => (
+              {items.map((p) => (
                 <article key={p.inventoryId ?? p._id} className="card">
                   <div className="imgBox">
                     {p.imageUrl ? (
@@ -210,10 +190,8 @@ export default function MinifigsPage({
         .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
         .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
         .text, .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
-        .text { min-width:280px; }
-        .priceGroup { display:flex; align-items:center; gap:6px; }
-        .priceInput { width:96px; padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
-        .dash { color:#444; }
+        .text { min-width:220px; }
+        .w80 { min-width:0; width:90px; }
         .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; }
         .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
         .meta { margin-left:auto; font-size:13px; color:#333; }
@@ -241,12 +219,12 @@ export async function getServerSideProps(ctx: any) {
   const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
 
   const page = Math.max(1, Number(query.page ?? 1))
-  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 36)))
+  const limit = Math.max(1, Math.min(100, Number(query.limit ?? 36)))
   const q = typeof query.q === 'string' ? query.q : ''
   const cond = typeof query.cond === 'string' ? query.cond : ''
   const minPrice = typeof query.minPrice === 'string' ? query.minPrice : ''
   const maxPrice = typeof query.maxPrice === 'string' ? query.maxPrice : ''
-  const sort = typeof query.sort === 'string' ? query.sort : ''
+  const sort = typeof query.sort === 'string' ? query.sort : 'name_asc'
 
   const params = new URLSearchParams()
   params.set('type', 'MINIFIG')
@@ -265,8 +243,8 @@ export async function getServerSideProps(ctx: any) {
   if (res.ok) {
     const data = await res.json()
     const arr =
-      (Array.isArray(data.inventory) && data.inventory) ||
       (Array.isArray(data.items) && data.items) ||
+      (Array.isArray(data.inventory) && data.inventory) ||
       (Array.isArray(data.results) && data.results) ||
       []
     items = arr

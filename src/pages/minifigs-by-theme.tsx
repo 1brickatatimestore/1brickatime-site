@@ -13,9 +13,12 @@ type Item = {
   price?: number
   condition?: string
   imageUrl?: string
+  qty?: number
 }
 
-type ThemeOpt = { key: string; label: string; count: number }
+type ThemeOption = { key: string; label: string; count: number }
+type SeriesOption = { key: string; label: string }
+
 type Props = {
   items: Item[]
   count: number
@@ -23,55 +26,27 @@ type Props = {
   limit: number
   theme: string
   series: string
-  onlyInStock: boolean
+  q: string
   cond: string
   minPrice: string
   maxPrice: string
   sort: string
-  themeOptions: ThemeOpt[]
+  themeOptions: ThemeOption[]
+  seriesOptions: SeriesOption[]
 }
 
-const COLLECTIBLES_KEY = 'collectible-minifigures'
-const COL_SERIES_PREFIX = 'cmf:'
+const CMF_KEY = 'collectible-minifigures'
 
 export default function MinifigsByThemePage(props: Props) {
   const {
-    items, count, page, limit, theme, series, onlyInStock, cond, minPrice, maxPrice, sort, themeOptions,
+    items, count, page, limit, theme, series, q, cond, minPrice, maxPrice, sort,
+    themeOptions, seriesOptions,
   } = props
   const router = useRouter()
   const { add } = useCart()
 
   const pages = Math.max(1, Math.ceil(count / Math.max(1, limit)))
-
-  const seriesOptions = useMemo(
-    () => (themeOptions || []).filter(t => t.key.startsWith(COL_SERIES_PREFIX)),
-    [themeOptions]
-  )
-  const isCollectibles = theme === COLLECTIBLES_KEY
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const theme = String(fd.get('theme') || '')
-    const series = String(fd.get('series') || '')
-    const onlyInStock = fd.get('onlyInStock') === 'on'
-    const cond = String(fd.get('cond') || '')
-    const minPrice = String(fd.get('minPrice') || '').trim()
-    const maxPrice = String(fd.get('maxPrice') || '').trim()
-    const sort = String(fd.get('sort') || '').trim()
-
-    const p = new URLSearchParams()
-    p.set('page', '1')
-    p.set('limit', String(limit))
-    if (theme) p.set('theme', theme)
-    if (series) p.set('series', series)
-    if (onlyInStock) p.set('onlyInStock', '1')
-    if (cond) p.set('cond', cond)
-    if (minPrice) p.set('minPrice', minPrice)
-    if (maxPrice) p.set('maxPrice', maxPrice)
-    if (sort) p.set('sort', sort)
-    router.push(`/minifigs-by-theme?${p.toString()}`)
-  }
+  const isCMF = theme === CMF_KEY
 
   const buildHref = (nextPage: number) => {
     const p = new URLSearchParams()
@@ -79,7 +54,7 @@ export default function MinifigsByThemePage(props: Props) {
     p.set('limit', String(limit))
     if (theme) p.set('theme', theme)
     if (series) p.set('series', series)
-    if (onlyInStock) p.set('onlyInStock', '1')
+    if (q) p.set('q', q)
     if (cond) p.set('cond', cond)
     if (minPrice) p.set('minPrice', minPrice)
     if (maxPrice) p.set('maxPrice', maxPrice)
@@ -87,15 +62,36 @@ export default function MinifigsByThemePage(props: Props) {
     return `/minifigs-by-theme?${p.toString()}`
   }
 
-  // Client-side sort (also forwards ?sort=... to API for future server-side sorting)
-  const sortedItems = useMemo(() => {
-    const arr = Array.isArray(items) ? [...items] : []
-    if (sort === 'price_asc') arr.sort((a, b) => Number(a.price ?? 0) - Number(b.price ?? 0))
-    if (sort === 'price_desc') arr.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0))
-    return arr
-  }, [items, sort])
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const _theme = String(fd.get('theme') || '')
+    const _series = String(fd.get('series') || '')
+    const _q = String(fd.get('q') || '').trim()
+    const _cond = String(fd.get('cond') || '')
+    const _min = String(fd.get('minPrice') || '').trim()
+    const _max = String(fd.get('maxPrice') || '').trim()
+    const _sort = String(fd.get('sort') || 'name_asc')
+    const p = new URLSearchParams()
+    p.set('page', '1')
+    p.set('limit', String(limit))
+    if (_theme) p.set('theme', _theme)
+    if (_series && _theme === CMF_KEY) p.set('series', _series)
+    if (_q) p.set('q', _q)
+    if (_cond) p.set('cond', _cond)
+    if (_min) p.set('minPrice', _min)
+    if (_max) p.set('maxPrice', _max)
+    if (_sort) p.set('sort', _sort)
+    router.push(`/minifigs-by-theme?${p.toString()}`)
+  }
 
-  const hasItems = sortedItems.length > 0
+  const hasItems = Array.isArray(items) && items.length > 0
+
+  // Keep options stable & readable
+  const themeOpts = useMemo(
+    () => (themeOptions || []).slice().sort((a, b) => a.label.localeCompare(b.label)),
+    [themeOptions]
+  )
 
   return (
     <>
@@ -107,62 +103,38 @@ export default function MinifigsByThemePage(props: Props) {
         <form className="filters" onSubmit={onSubmit}>
           <select name="theme" defaultValue={theme || ''} className="select">
             <option value="">{`All themes`}</option>
-            {themeOptions
-              .filter(t => !t.key.startsWith(COL_SERIES_PREFIX))
-              .map(t => (
-                <option key={t.key} value={t.key}>
-                  {t.label} ({t.count})
-                </option>
-              ))}
+            {themeOpts.map(t => (
+              <option key={t.key} value={t.key}>
+                {t.label} {t.count ? `(${t.count})` : ''}
+              </option>
+            ))}
           </select>
 
-          {isCollectibles && (
+          {theme === CMF_KEY && (
             <select name="series" defaultValue={series || ''} className="select">
-              <option value="">{`All series`}</option>
-              {seriesOptions.map(s => (
-                <option key={s.key} value={s.key.replace(COL_SERIES_PREFIX, '')}>
-                  {s.label} ({s.count})
-                </option>
+              <option value="">{`All CMF series`}</option>
+              {seriesOptions.map(o => (
+                <option key={o.key} value={o.key}>{o.label}</option>
               ))}
             </select>
           )}
 
-          <label className="chk">
-            <input type="checkbox" name="onlyInStock" defaultChecked={onlyInStock} /> In stock only
-          </label>
-
+          <input name="q" defaultValue={q} placeholder="Search…" className="text" />
           <select name="cond" defaultValue={cond} className="select">
             <option value="">Any condition</option>
             <option value="N">New</option>
             <option value="U">Used</option>
           </select>
 
-          <div className="priceGroup" title="Filter by price range">
-            <input
-              name="minPrice"
-              defaultValue={minPrice}
-              placeholder="Min $"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              className="priceInput"
-            />
-            <span className="dash">–</span>
-            <input
-              name="maxPrice"
-              defaultValue={maxPrice}
-              placeholder="Max $"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              className="priceInput"
-            />
-          </div>
+          <input name="minPrice" defaultValue={minPrice} inputMode="decimal" placeholder="Min $" className="text w80" />
+          <input name="maxPrice" defaultValue={maxPrice} inputMode="decimal" placeholder="Max $" className="text w80" />
 
-          <select name="sort" defaultValue={sort} className="select" title="Sort by price">
-            <option value="">Sort: Default</option>
-            <option value="price_asc">Price: Low → High</option>
-            <option value="price_desc">Price: High → Low</option>
+          <select name="sort" defaultValue={sort || 'name_asc'} className="select">
+            <option value="name_asc">Name A→Z</option>
+            <option value="name_desc">Name Z→A</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+            <option value="newest">Newest</option>
           </select>
 
           <button type="submit" className="btnPrimary">Apply</button>
@@ -176,7 +148,7 @@ export default function MinifigsByThemePage(props: Props) {
         {hasItems ? (
           <>
             <div className="grid">
-              {sortedItems.map((p) => (
+              {items.map((p) => (
                 <article key={p.inventoryId ?? p._id} className="card">
                   <div className="imgBox">
                     {p.imageUrl ? (
@@ -240,11 +212,9 @@ export default function MinifigsByThemePage(props: Props) {
       <style jsx>{`
         .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
         .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
-        .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
-        .chk { display:flex; align-items:center; gap:6px; color:#333; }
-        .priceGroup { display:flex; align-items:center; gap:6px; }
-        .priceInput { width:96px; padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
-        .dash { color:#444; }
+        .text, .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
+        .text { min-width:220px; }
+        .w80 { min-width:0; width:90px; }
         .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; }
         .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
         .meta { margin-left:auto; font-size:13px; color:#333; }
@@ -272,44 +242,23 @@ export async function getServerSideProps(ctx: any) {
   const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
 
   const page = Math.max(1, Number(query.page ?? 1))
-  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 72)))
+  const limit = Math.max(1, Math.min(100, Number(query.limit ?? 72)))
   const theme = typeof query.theme === 'string' ? query.theme : ''
   const series = typeof query.series === 'string' ? query.series : ''
-  const onlyInStock = query.onlyInStock === '1' || query.onlyInStock === 'true'
+  const q = typeof query.q === 'string' ? query.q : ''
   const cond = typeof query.cond === 'string' ? query.cond : ''
   const minPrice = typeof query.minPrice === 'string' ? query.minPrice : ''
   const maxPrice = typeof query.maxPrice === 'string' ? query.maxPrice : ''
-  const sort = typeof query.sort === 'string' ? query.sort : ''
+  const sort = typeof query.sort === 'string' ? query.sort : 'name_asc'
 
-  // fetch theme options (with live counts) + series list
-  let themeOptions: ThemeOpt[] = []
-  try {
-    const tparams = new URLSearchParams()
-    tparams.set('type', 'MINIFIG')
-    if (onlyInStock) tparams.set('onlyInStock', '1')
-    if (cond) tparams.set('cond', cond)
-    if (minPrice) tparams.set('minPrice', minPrice)
-    if (maxPrice) tparams.set('maxPrice', maxPrice)
-    const tres = await fetch(`${proto}://${host}/api/themes?${tparams.toString()}`)
-    if (tres.ok) {
-      const data = await tres.json()
-      const base: ThemeOpt[] = Array.isArray(data.options) ? data.options : []
-      const seriesList: ThemeOpt[] = (Array.isArray(data.series) ? data.series : []).map((s: any) => ({
-        key: `cmf:${s.key}`,
-        label: s.label,
-        count: s.count,
-      }))
-      themeOptions = [...base, ...seriesList]
-    }
-  } catch {}
-
+  // 1) products for the current filters
   const params = new URLSearchParams()
   params.set('type', 'MINIFIG')
   params.set('page', String(page))
   params.set('limit', String(limit))
   if (theme) params.set('theme', theme)
   if (series) params.set('series', series)
-  if (onlyInStock) params.set('onlyInStock', '1')
+  if (q) params.set('q', q)
   if (cond) params.set('cond', cond)
   if (minPrice) params.set('minPrice', minPrice)
   if (maxPrice) params.set('maxPrice', maxPrice)
@@ -321,29 +270,29 @@ export async function getServerSideProps(ctx: any) {
   const res = await fetch(`${proto}://${host}/api/products?${params.toString()}`)
   if (res.ok) {
     const data = await res.json()
-    const arr =
-      (Array.isArray(data.inventory) && data.inventory) ||
-      (Array.isArray(data.items) && data.items) ||
-      (Array.isArray(data.results) && data.results) ||
-      []
-    items = arr
-    count = Number(data.count ?? arr.length ?? 0)
+    items = Array.isArray(data.items) ? data.items : []
+    count = Number(data.count ?? items.length ?? 0)
+  }
+
+  // 2) theme options (with live counts for current cond / stock)
+  const themeParams = new URLSearchParams()
+  themeParams.set('type', 'MINIFIG')
+  themeParams.set('onlyInStock', '1')
+  if (cond) themeParams.set('cond', cond)
+  const r2 = await fetch(`${proto}://${host}/api/themes?${themeParams.toString()}`)
+
+  let themeOptions: ThemeOption[] = []
+  let seriesOptions: SeriesOption[] = []
+  if (r2.ok) {
+    const data = await r2.json()
+    if (Array.isArray(data.options)) themeOptions = data.options
+    if (Array.isArray(data.series)) seriesOptions = data.series
   }
 
   return {
     props: {
-      items,
-      count,
-      page,
-      limit,
-      theme,
-      series,
-      onlyInStock,
-      cond,
-      minPrice,
-      maxPrice,
-      sort,
-      themeOptions,
+      items, count, page, limit, theme, series, q, cond, minPrice, maxPrice, sort,
+      themeOptions, seriesOptions,
     },
   }
 }
