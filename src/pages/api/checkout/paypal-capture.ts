@@ -1,62 +1,102 @@
-// src/pages/api/checkout/paypal-capture.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getAccessToken, baseUrl } from '@/lib/paypal'
 
-function getPaypalBase() {
-  const env = (process.env.PAYPAL_ENV || 'live').toLowerCase()
-  const base = env === 'sandbox' ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com'
-  return { api: base, oauth: `${base}/v1/oauth2/token` }
+type Json = Record<string, any>
+
+function isTestMode() {
+  const v = (process.env.CHECKOUT_TEST_MODE || '').trim().toLowerCase()
+  return v === '1' || v === 'true' || v === 'yes'
 }
 
-async function getAccessToken() {
-  const client = process.env.PAYPAL_CLIENT_ID
-  const secret = process.env.PAYPAL_CLIENT_SECRET
-  if (!client || !secret) throw new Error('Missing PayPal credentials')
-  const { oauth } = getPaypalBase()
+function ok(res: NextApiResponse, data: Json) {
+  res.status(200).json(data)
+}
 
-  const res = await fetch(oauth, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${client}:${secret}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({ grant_type: 'client_credentials' }),
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`PayPal OAuth failed (${res.status}): ${text}`)
-  }
-  const data = (await res.json()) as { access_token?: string }
-  if (!data.access_token) throw new Error('PayPal OAuth: no access_token')
-  return data.access_token
+function bad(res: NextApiResponse, status: number, code: string, message: string, extra?: Json) {
+  res.status(status).json({ error: code, message, ...(extra || {}) })
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
+  // We’ll accept both GET and POST for your convenience when testing from the browser
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    res.setHeader('Allow', 'GET, POST')
+    return bad(res, 405, 'method_not_allowed', 'Use GET or POST')
+  }
 
+  // PayPal returns ?token=... on the return URL; some clients send {orderId} in body.
+  const q = req.query || {}
+  const body = (typeof req.body === 'object' && req.body) ? req.body : {}
+  const orderId =
+    (q.orderId as string) ||
+    (q.token as string) ||
+    (body.orderId as string)
+
+  if (!orderId) {
+    return bad(res, 400, 'missing_order_id', 'Provide ?orderId=... (or ?token=...) or JSON {orderId}')
+  }
+
+  const currency = (process.env.CURRENCY || 'AUD').toUpperCase()
+
+  // ---------- TEST MODE: no real capture, no charge ----------
+  if (isTestMode()) {
+    const now = new Date().toISOString()
+    // Shape roughly matches PayPal’s capture response so the rest of your flow keeps working.
+    const mock: Json = {
+      id: orderId,
+      status: 'COMPLETED',
+      intent: 'CAPTURE',
+      create_time: now,
+      update_time: now,
+      payer: {
+        name: { given_name: 'Test', surname: 'Buyer' },
+        email_address: 'buyer@example.com',
+        payer_id: 'TESTPAYER123',
+      },
+      purchase_units: [
+        {
+          reference_id: 'default',
+          payments: {
+            captures: [
+              {
+                id: `TEST-CAP-${orderId}`,
+                status: 'COMPLETED',
+                amount: { currency_code: currency, value: '0.00' },
+                final_capture: true,
+                create_time: now,
+                update_time: now,
+              },
+            ],
+          },
+        },
+      ],
+      _meta: { testMode: true },
+    }
+    return ok(res, mock)
+  }
+
+  // ---------- LIVE CAPTURE ----------
   try {
-    const orderId = (req.query.orderId as string) || (req.body?.orderId as string)
-    if (!orderId) return res.status(400).json({ error: 'missing_orderId' })
-
-    const access = await getAccessToken()
-    const { api } = getPaypalBase()
-
-    const capRes = await fetch(`${api}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+    const accessToken = await getAccessToken()
+    const url = `${baseUrl}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`
+    const paypalRes = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${access}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'PayPal-Request-Id': `cap-${Date.now()}`, // idempotency
+        'PayPal-Request-Id': `cap_${orderId}`, // idempotency
       },
     })
 
-    const json = await capRes.json().catch(() => ({}))
-    if (!capRes.ok) {
-      return res.status(500).json({ error: 'paypal_capture_failed', status: capRes.status, details: json })
+    const data = await paypalRes.json().catch(() => ({}))
+
+    if (!paypalRes.ok) {
+      return bad(res, paypalRes.status, 'paypal_capture_failed', 'PayPal capture failed', {
+        details: data,
+      })
     }
 
-    return res.status(200).json({ ok: true, orderId, result: json })
+    return ok(res, data)
   } catch (err: any) {
-    console.error('paypal-capture error:', err?.message || err)
-    return res.status(500).json({ error: 'fatal', message: err?.message || 'Unknown error' })
+    return bad(res, 500, 'fatal', err?.message || 'Unexpected error')
   }
 }

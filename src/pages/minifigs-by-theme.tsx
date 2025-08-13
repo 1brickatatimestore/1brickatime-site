@@ -3,7 +3,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useRef, useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
@@ -17,6 +17,7 @@ type Item = {
 }
 
 type ThemeOpt = { key: string; label: string; count: number }
+type SeriesOpt = { key: string; label: string; count: number }
 
 type Props = {
   items: Item[]
@@ -25,79 +26,74 @@ type Props = {
   limit: number
   q: string
   cond: string
+  onlyInStock: boolean
   theme: string
   series: string
-  themeOptions: ThemeOpt[]
-  seriesList: ThemeOpt[] // series options returned by /api/themes
+  themes: ThemeOpt[]
+  seriesList: SeriesOpt[]
 }
 
 const COLLECTIBLES_KEY = 'collectible-minifigures'
 
-export default function MinifigsByThemePage({
-  items,
-  count,
-  page,
-  limit,
-  q,
-  cond,
-  theme,
-  series,
-  themeOptions,
-  seriesList,
-}: Props) {
+export default function MinifigsByThemePage(props: Props) {
+  const {
+    items, count, page, limit, q, cond, onlyInStock,
+    theme, series, themes, seriesList
+  } = props
+
   const router = useRouter()
   const { add } = useCart()
   const qRef = useRef<HTMLInputElement>(null)
+
   const pages = Math.max(1, Math.ceil(count / Math.max(1, limit)))
 
-  const isCollectibles = theme === COLLECTIBLES_KEY
-  const seriesOptions = useMemo(() => Array.isArray(seriesList) ? seriesList : [], [seriesList])
+  const showSeries = theme === COLLECTIBLES_KEY
+  const themeOptions = useMemo(() => themes ?? [], [themes])
+  const seriesOptions = useMemo(() => (showSeries ? (seriesList ?? []) : []), [showSeries, seriesList])
 
   const buildHref = (nextPage: number) => {
     const p = new URLSearchParams()
     p.set('page', String(nextPage))
     p.set('limit', String(limit))
+    if (theme) p.set('theme', theme)
+    if (showSeries && series) p.set('series', series)
     if (q) p.set('q', q)
     if (cond) p.set('cond', cond)
-    if (theme) p.set('theme', theme)
-    if (isCollectibles && series) p.set('series', series)
+    if (onlyInStock) p.set('onlyInStock', '1')
     return `/minifigs-by-theme?${p.toString()}`
   }
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const nextQ = String(fd.get('q') || '').trim()
-    const nextCond = String(fd.get('cond') || '')
-    const nextTheme = String(fd.get('theme') || '')
-    const nextSeries = String(fd.get('series') || '')
     const p = new URLSearchParams()
     p.set('page', '1')
-    p.set('limit', String(limit))
-    if (nextQ) p.set('q', nextQ)
-    if (nextCond) p.set('cond', nextCond)
-    if (nextTheme) p.set('theme', nextTheme)
-    if (nextTheme === COLLECTIBLES_KEY && nextSeries) p.set('series', nextSeries)
+    p.set('limit', String(fd.get('limit') || limit))
+    const themeVal = String(fd.get('theme') || '')
+    const seriesVal = String(fd.get('series') || '')
+    const qVal = String(fd.get('q') || '').trim()
+    const condVal = String(fd.get('cond') || '')
+    const only = fd.get('onlyInStock') ? '1' : ''
+
+    if (themeVal) p.set('theme', themeVal)
+    if (themeVal === COLLECTIBLES_KEY && seriesVal) p.set('series', seriesVal)
+    if (qVal) p.set('q', qVal)
+    if (condVal) p.set('cond', condVal)
+    if (only) p.set('onlyInStock', '1')
+
     router.push(`/minifigs-by-theme?${p.toString()}`)
   }
-
-  const title = (() => {
-    const bits = ['Minifigs by Theme']
-    if (theme) bits.push('— ' + (themeOptions.find(t => t.key === theme)?.label || theme))
-    return `${bits.join(' ')} — 1 Brick at a Time`
-  })()
 
   const hasItems = Array.isArray(items) && items.length > 0
 
   return (
     <>
       <Head>
-        <title>{title}</title>
+        <title>{`Minifigs by Theme — 1 Brick at a Time`}</title>
       </Head>
 
       <main className="wrap">
         <form className="filters" onSubmit={onSubmit}>
-          {/* Theme */}
           <select name="theme" defaultValue={theme || ''} className="select">
             <option value="">{`All themes`}</option>
             {themeOptions.map(t => (
@@ -107,24 +103,17 @@ export default function MinifigsByThemePage({
             ))}
           </select>
 
-          {/* Series (always rendered to keep DOM stable; disabled unless Collectibles) */}
-          <select
-            name="series"
-            defaultValue={series || ''}
-            className="select"
-            disabled={!isCollectibles}
-            style={{ visibility: isCollectibles ? 'visible' : 'hidden', width: isCollectibles ? undefined : 0 }}
-            aria-hidden={!isCollectibles}
-          >
-            <option value="">{`All series`}</option>
-            {seriesOptions.map(s => (
-              <option key={s.key} value={s.key}>
-                {s.label} ({s.count})
-              </option>
-            ))}
-          </select>
+          {showSeries && (
+            <select name="series" defaultValue={series || ''} className="select">
+              <option value="">{`All series`}</option>
+              {seriesOptions.map(s => (
+                <option key={s.key} value={s.key}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          )}
 
-          {/* Search & condition */}
           <input
             ref={qRef}
             name="q"
@@ -132,11 +121,22 @@ export default function MinifigsByThemePage({
             placeholder="Search name or number…"
             className="text"
           />
+
           <select name="cond" defaultValue={cond} className="select">
             <option value="">Any condition</option>
             <option value="N">New</option>
             <option value="U">Used</option>
           </select>
+
+          <select name="limit" defaultValue={String(limit)} className="select narrow">
+            {[36, 48, 72].map(n => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+
+          <label className="chk">
+            <input type="checkbox" name="onlyInStock" defaultChecked={!!onlyInStock} /> Only in stock
+          </label>
 
           <button type="submit" className="btnPrimary">Apply</button>
           <Link className="btnGhost" href="/minifigs-by-theme">Clear</Link>
@@ -150,28 +150,25 @@ export default function MinifigsByThemePage({
           <>
             <div className="grid">
               {items.map((p) => {
-                const id = p.inventoryId ? String(p.inventoryId) : (p._id as string)
-                const name = p.name || p.itemNo || 'Minifig'
+                const idAttr = p.inventoryId ? String(p.inventoryId) : (p._id as string)
                 return (
-                  <article key={p.inventoryId ?? p._id} className="card">
+                  <article key={idAttr} className="card">
                     <div className="imgBox">
-                      <Link href={`/minifig/${encodeURIComponent(id)}`} aria-label={`View ${name}`}>
-                        {p.imageUrl ? (
-                          <Image
-                            src={p.imageUrl}
-                            alt={name}
-                            fill
-                            sizes="(max-width: 900px) 50vw, 240px"
-                            style={{ objectFit: 'contain' }}
-                          />
-                        ) : (
-                          <div className="noImg">No image</div>
-                        )}
-                      </Link>
+                      {p.imageUrl ? (
+                        <Image
+                          src={p.imageUrl}
+                          alt={p.name || p.itemNo || 'Minifig'}
+                          fill
+                          sizes="(max-width: 900px) 50vw, 240px"
+                          style={{ objectFit: 'contain' }}
+                        />
+                      ) : (
+                        <div className="noImg">No image</div>
+                      )}
                     </div>
 
-                    <h3 className="name" title={name}>
-                      <Link href={`/minifig/${encodeURIComponent(id)}`}>{name}</Link>
+                    <h3 className="name" title={p.name}>
+                      {p.name || p.itemNo || 'Minifig'}
                     </h3>
 
                     <div className="priceRow">
@@ -183,8 +180,8 @@ export default function MinifigsByThemePage({
                         className="addBtn"
                         onClick={() =>
                           add({
-                            id,
-                            name,
+                            id: idAttr,
+                            name: p.name ?? p.itemNo ?? 'Minifig',
                             price: Number(p.price ?? 0),
                             qty: 1,
                             imageUrl: p.imageUrl,
@@ -193,6 +190,10 @@ export default function MinifigsByThemePage({
                       >
                         Add to cart
                       </button>
+                    </div>
+
+                    <div className="row">
+                      <Link className="details" href={`/minifig/${idAttr}`}>Details</Link>
                     </div>
                   </article>
                 )
@@ -220,17 +221,19 @@ export default function MinifigsByThemePage({
         .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
         .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
         .text, .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
-        .text { min-width:260px; }
+        .text { min-width:280px; }
+        .select.narrow { width:72px; }
+        .chk { display:flex; align-items:center; gap:6px; font-size:14px; color:#333; }
         .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; }
-        .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
+        .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:700; }
         .meta { margin-left:auto; font-size:13px; color:#333; }
         .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
         .card { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; gap:8px; }
         .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; }
         .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; font-size:14px; }
         .name { font-size:14px; margin:0 0 6px; min-height:34px; color:#1e1e1e; }
-        .name :global(a){ text-decoration:none; color:inherit; }
-        .name :global(a):hover{ text-decoration:underline; }
+        .row { display:flex; align-items:center; justify-content:flex-start; }
+        .details { font-size:13px; color:#204d69; font-weight:600; }
         .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; }
         .price { font-weight:700; color:#2a2a2a; }
         .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; }
@@ -250,68 +253,57 @@ export async function getServerSideProps(ctx: any) {
   const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
 
   const page = Math.max(1, Number(query.page ?? 1))
-  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 72)))
+  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 36)))
   const q = typeof query.q === 'string' ? query.q : ''
   const cond = typeof query.cond === 'string' ? query.cond : ''
+  const onlyInStock = query.onlyInStock === '1' || query.onlyInStock === 'true'
   const theme = typeof query.theme === 'string' ? query.theme : ''
   const series = typeof query.series === 'string' ? query.series : ''
 
-  // Load theme + series options (live counts) with current filters
-  const themeParams = new URLSearchParams()
-  themeParams.set('type', 'MINIFIG')
-  themeParams.set('onlyInStock', '1')
-  if (cond) themeParams.set('cond', cond)
-  if (q) themeParams.set('q', q)
+  const params = new URLSearchParams()
+  params.set('type', 'MINIFIG')
+  params.set('page', String(page))
+  params.set('limit', String(limit))
+  if (q) params.set('q', q)
+  if (cond) params.set('cond', cond)
+  if (onlyInStock) params.set('onlyInStock', '1')
+  if (theme) params.set('theme', theme)
+  if (theme === 'collectible-minifigures' && series) params.set('series', series)
 
-  let themeOptions: ThemeOpt[] = []
-  let seriesList: ThemeOpt[] = []
-  try {
-    const r = await fetch(`${proto}://${host}/api/themes?${themeParams.toString()}`)
-    if (r.ok) {
-      const t = await r.json()
-      themeOptions = Array.isArray(t.options) ? t.options : []
-      seriesList = Array.isArray(t.series) ? t.series : []
-    }
-  } catch {}
-
-  // Load items list for the current selection
-  const productParams = new URLSearchParams()
-  productParams.set('type', 'MINIFIG')
-  productParams.set('page', String(page))
-  productParams.set('limit', String(limit))
-  if (q) productParams.set('q', q)
-  if (cond) productParams.set('cond', cond)
-  if (theme) productParams.set('theme', theme)
-  if (theme === COLLECTIBLES_KEY && series) productParams.set('series', series)
-
+  // products
   let items: Item[] = []
   let count = 0
-  try {
-    const r2 = await fetch(`${proto}://${host}/api/products?${productParams.toString()}`)
-    if (r2.ok) {
-      const data = await r2.json()
-      const arr =
-        (Array.isArray(data.items) && data.items) ||
-        (Array.isArray(data.results) && data.results) ||
-        (Array.isArray(data.inventory) && data.inventory) ||
-        []
-      items = arr
-      count = Number(data.count ?? arr.length ?? 0)
-    }
-  } catch {}
+  const res = await fetch(`${proto}://${host}/api/products?${params.toString()}`)
+  if (res.ok) {
+    const data = await res.json()
+    const arr =
+      (Array.isArray(data.inventory) && data.inventory) ||
+      (Array.isArray(data.items) && data.items) ||
+      (Array.isArray(data.results) && data.results) ||
+      []
+    items = arr
+    count = Number(data.count ?? arr.length ?? 0)
+  }
+
+  // theme options (+ series if any). Pass the same filters for live counts.
+  const tParams = new URLSearchParams()
+  tParams.set('type', 'MINIFIG')
+  if (q) tParams.set('q', q)
+  if (cond) tParams.set('cond', cond)
+  if (onlyInStock) tParams.set('onlyInStock', '1')
+  const tres = await fetch(`${proto}://${host}/api/themes?${tParams.toString()}`)
+  let themes: ThemeOpt[] = []
+  let seriesList: SeriesOpt[] = []
+  if (tres.ok) {
+    const td = await tres.json()
+    themes = Array.isArray(td.options) ? td.options : []
+    seriesList = Array.isArray(td.series) ? td.series : []
+  }
 
   return {
     props: {
-      items,
-      count,
-      page,
-      limit,
-      q,
-      cond,
-      theme,
-      series,
-      themeOptions,
-      seriesList,
-    },
+      items, count, page, limit, q, cond, onlyInStock,
+      theme, series, themes, seriesList
+    }
   }
 }
