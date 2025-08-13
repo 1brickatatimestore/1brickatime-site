@@ -1,103 +1,81 @@
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
-import type { GetServerSideProps } from 'next'
-import mongoose from 'mongoose'
+import { useRouter } from 'next/router'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
   _id?: string
   inventoryId?: number
-  itemNo?: string
   name?: string
+  itemNo?: string
   price?: number
   condition?: string
   imageUrl?: string
-  // any other plain JSON fields are fine
+  remarks?: string
+  description?: string
 }
 
-const Product =
-  mongoose.models.Product ||
-  mongoose.model('Product', new mongoose.Schema({}, { strict: false }), 'products')
+type Props = { item: Item | null }
 
-/** Convert any Dates/ObjectIds/BigInts to simple JSON values */
-function toJSONSafe<T>(v: T): T {
-  return JSON.parse(
-    JSON.stringify(v, (_, val) => {
-      // Date -> ISO string
-      if (val instanceof Date) return val.toISOString()
-      // Mongo ObjectId (from .lean())
-      if (val && typeof val === 'object') {
-        // Most drivers expose toHexString or toString that returns the id.
-        // We prefer the 24-hex string if available.
-        // @ts-ignore
-        if (typeof val.toHexString === 'function') return val.toHexString()
-        // @ts-ignore
-        if (val._bsontype === 'ObjectID' && typeof val.toString === 'function') return String(val)
-      }
-      // BigInt -> number
-      if (typeof val === 'bigint') return Number(val)
-      return val
-    })
-  )
-}
-
-export default function MinifigDetail({ item }: { item: Item }) {
+export default function MinifigDetail({ item }: Props) {
+  const router = useRouter()
   const { add } = useCart()
 
   if (!item) {
     return (
-      <main style={{ marginLeft: 64, padding: '24px' }}>
-        <p>Minifig not found.</p>
-        <p>
-          <Link href="/minifigs">← Back to Minifigs</Link>
-        </p>
+      <main className="wrap">
+        <p>Item not found.</p>
+        <p><Link href="/minifigs">Back to minifigs</Link></p>
       </main>
     )
   }
 
-  const price = Number(item.price ?? 0)
+  const id = item.inventoryId ? String(item.inventoryId) : (item._id as string)
 
   return (
     <>
-      <Head>
-        <title>{`${item.name || item.itemNo || 'Minifig'} — 1 Brick at a Time`}</title>
-      </Head>
-
+      <Head><title>{item.name || item.itemNo || 'Minifig'} — 1 Brick at a Time</title></Head>
       <main className="wrap">
-        <Link href="/minifigs" className="back">← Back to Minifigs</Link>
+        <nav className="crumbs">
+          <Link href="/minifigs">← Back to minifigs</Link>
+        </nav>
 
-        <section className="card">
+        <section className="detail">
           <div className="imgBox">
             {item.imageUrl ? (
               <Image
                 src={item.imageUrl}
                 alt={item.name || item.itemNo || 'Minifig'}
                 fill
-                sizes="(max-width: 900px) 90vw, 360px"
+                sizes="(max-width: 900px) 90vw, 480px"
                 style={{ objectFit: 'contain' }}
               />
-            ) : (
-              <div className="noImg">No image</div>
-            )}
+            ) : <div className="noImg">No image</div>}
           </div>
 
           <div className="info">
-            <h1 className="title">{item.name || item.itemNo || 'Minifig'}</h1>
-            <p className="sku">{item.itemNo ? `#${item.itemNo}` : item.inventoryId ? `Inventory ${item.inventoryId}` : ''}</p>
+            <h1 className="title">{item.name || item.itemNo}</h1>
+            <div className="priceLine">
+              <span className="price">${Number(item.price ?? 0).toFixed(2)}</span>
+              {item.condition && <span className="cond">• {item.condition}</span>}
+            </div>
 
-            <p className="price">
-              ${price.toFixed(2)} {item.condition ? `• ${item.condition}` : ''}
-            </p>
+            {(item.description || item.remarks) && (
+              <div className="desc">
+                {item.description && <p dangerouslySetInnerHTML={{ __html: item.description }} />}
+                {item.remarks && <p dangerouslySetInnerHTML={{ __html: item.remarks }} />}
+              </div>
+            )}
 
             <div className="actions">
               <button
                 className="addBtn"
                 onClick={() =>
                   add({
-                    id: item.inventoryId ? String(item.inventoryId) : (item._id as string),
+                    id,
                     name: item.name ?? item.itemNo ?? 'Minifig',
-                    price: price,
+                    price: Number(item.price ?? 0),
                     qty: 1,
                     imageUrl: item.imageUrl,
                   })
@@ -105,61 +83,67 @@ export default function MinifigDetail({ item }: { item: Item }) {
               >
                 Add to cart
               </button>
-              <Link href="/checkout" className="goCheckout">Go to checkout</Link>
             </div>
           </div>
         </section>
       </main>
 
       <style jsx>{`
-        .wrap { margin-left:64px; padding:20px 22px 120px; max-width:1150px; }
-        .back { display:inline-block; margin-bottom:12px; color:#204d69; }
-        .card { display:grid; grid-template-columns: 360px 1fr; gap:24px; background:#fff; border-radius:16px; padding:16px; box-shadow:0 2px 10px rgba(0,0,0,.08); }
-        .imgBox { position:relative; width:100%; aspect-ratio:1/1; background:#f7f5f2; border-radius:12px; overflow:hidden; }
-        .noImg{ position:absolute; inset:0; display:grid; place-items:center; color:#666; }
-        .info { display:flex; flex-direction:column; gap:10px; }
-        .title { margin:0; font-size:24px; line-height:1.2; }
-        .sku { color:#666; margin:0; }
-        .price { font-weight:800; font-size:18px; margin:10px 0; }
-        .actions { display:flex; gap:10px; flex-wrap:wrap; }
-        .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:10px 14px; border-radius:10px; font-weight:800; }
-        .goCheckout { border:2px solid #204d69; color:#204d69; padding:10px 14px; border-radius:10px; font-weight:700; }
-        @media (max-width:900px){ .card{ grid-template-columns:1fr; } .wrap{ padding:16px 16px 110px; } }
+        .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
+        .crumbs { margin:4px 0 16px; }
+        .detail { display:grid; grid-template-columns: 1fr 1fr; gap:24px; align-items:start; }
+        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:12px; overflow:hidden; }
+        .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; }
+        .title { margin:0 0 8px; font-size:22px; }
+        .priceLine { font-size:18px; margin-bottom:12px; }
+        .price { font-weight:800; }
+        .cond { color:#444; }
+        .desc p { margin:0 0 8px; color:#222; }
+        .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:10px 16px; border-radius:10px; font-weight:800; cursor:pointer; }
+        @media (max-width:900px){ .detail{ grid-template-columns:1fr; } .wrap{ margin-left:64px; } }
       `}</style>
     </>
   )
 }
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const { id } = ctx.params as { id: string }
+export async function getServerSideProps(ctx: any) {
+  const { req, query } = ctx
+  const id = String(query.id || '')
+  const host = req?.headers?.host || 'localhost:3000'
+  const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
 
-  if (!process.env.MONGODB_URI) {
-    return { notFound: true }
+  async function fetchTry(url: string) {
+    const r = await fetch(url)
+    if (!r.ok) return null
+    const j = await r.json()
+    const arr =
+      (Array.isArray(j.items) && j.items) ||
+      (Array.isArray(j.inventory) && j.inventory) ||
+      (Array.isArray(j.results) && j.results) || []
+    return { raw: j, arr }
   }
 
-  if (mongoose.connection.readyState !== 1) {
-    await mongoose.connect(process.env.MONGODB_URI)
+  let found: Item | null = null
+
+  // Try inventoryId filter
+  const f1 = await fetchTry(`${proto}://${host}/api/products?inventoryId=${encodeURIComponent(id)}&includeSoldOut=1&limit=1`)
+  if (f1?.arr?.[0]) found = f1.arr[0]
+
+  // Try Mongo _id
+  if (!found) {
+    const f2 = await fetchTry(`${proto}://${host}/api/products?_id=${encodeURIComponent(id)}&includeSoldOut=1&limit=1`)
+    if (f2?.arr?.[0]) found = f2.arr[0]
   }
 
-  // Figure out how to look up the item:
-  // - numeric -> inventoryId
-  // - 24-hex -> _id
-  // - otherwise, try itemNo or fallback
-  const isNumeric = /^\d+$/.test(id)
-  const isHex24 = /^[0-9a-fA-F]{24}$/.test(id)
+  // Fallback: broad search, then exact match by id
+  if (!found) {
+    const f3 = await fetchTry(`${proto}://${host}/api/products?q=${encodeURIComponent(id)}&includeSoldOut=1&limit=50`)
+    const m = f3?.arr?.find((x: any) =>
+      String(x.inventoryId ?? '') === id || String(x._id ?? '') === id || String(x.itemNo ?? '') === id
+    )
+    if (m) found = m as Item
+  }
 
-  const or: any[] = []
-  if (isNumeric) or.push({ inventoryId: Number(id) })
-  if (isHex24) or.push({ _id: new mongoose.Types.ObjectId(id) })
-  // Useful fallback
-  or.push({ itemNo: id })
-
-  const doc = await Product.findOne({ $or: or }, {
-    _id: 1, inventoryId: 1, itemNo: 1, name: 1, price: 1, condition: 1, imageUrl: 1
-  }).lean().exec()
-
-  if (!doc) return { notFound: true }
-
-  const item: Item = toJSONSafe(doc)
-  return { props: { item } }
+  if (!found) return { props: { item: null } }
+  return { props: { item: found } }
 }

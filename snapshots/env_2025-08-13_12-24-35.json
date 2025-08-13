@@ -1,0 +1,1 @@
+{"ok":true,"nodeEnv":"development","siteUrl":"http://localhost:3000","currency":"AUD","stripe":{"publishablePresent":true,"secretPresent":true,"publishableMasked":"pk_li…"},"paypal":{"env":"live","clientPresent":true,"clientMasked":"AQxy…"},"db":{"driver":"mongodb","host":"127.0.0.1:27017","present":true}}
