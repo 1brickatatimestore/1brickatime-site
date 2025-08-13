@@ -1,93 +1,79 @@
-// src/pages/api/checkout/paypal-return.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-function getSiteUrl(req: NextApiRequest) {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim()
-  if (envUrl) return envUrl.replace(/\/+$/, '')
-  const proto =
-    (req.headers['x-forwarded-proto'] as string) ||
-    (req.headers['x-forwarded-protocol'] as string) ||
-    'http'
-  const host = (req.headers['x-forwarded-host'] as string) || (req.headers.host as string) || 'localhost:3000'
-  return `${proto}://${host}`.replace(/\/+$/, '')
-}
+const isTestMode = () => (process.env.CHECKOUT_TEST_MODE ?? '') === '1'
+const PP_BASE = 'https://api-m.paypal.com'
 
-function getPaypalBase() {
-  const env = (process.env.PAYPAL_ENV || 'live').toLowerCase()
-  const base = env === 'sandbox' ? 'https://api-m.sandbox.paypal.com' : 'https://api-m.paypal.com'
-  return { api: base, oauth: `${base}/v1/oauth2/token` }
-}
+const siteUrlFrom = (req: NextApiRequest) =>
+  process.env.NEXT_PUBLIC_SITE_URL || `http://${req.headers.host}`
 
 async function getAccessToken() {
-  const client = process.env.PAYPAL_CLIENT_ID
-  const secret = process.env.PAYPAL_CLIENT_SECRET
-  if (!client || !secret) throw new Error('Missing PayPal credentials')
-  const { oauth } = getPaypalBase()
+  const id = process.env.PAYPAL_CLIENT_ID || ''
+  const secret = process.env.PAYPAL_CLIENT_SECRET || ''
+  const auth = Buffer.from(`${id}:${secret}`).toString('base64')
 
-  const res = await fetch(oauth, {
+  const r = await fetch(`${PP_BASE}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
-      Authorization: 'Basic ' + Buffer.from(`${client}:${secret}`).toString('base64'),
+      Authorization: `Basic ${auth}`,
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({ grant_type: 'client_credentials' }),
+    cache: 'no-store',
   })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`PayPal OAuth failed (${res.status}): ${text}`)
+  const j = await r.json()
+  if (!r.ok) throw new Error(j.error_description || 'paypal_token_failed')
+  return j.access_token as string
+}
+
+async function capture(orderId: string) {
+  const token = await getAccessToken()
+  const r = await fetch(`${PP_BASE}/v2/checkout/orders/${orderId}/capture`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store',
+  })
+  const j = await r.json()
+  if (!r.ok) {
+    const err = new Error('paypal_capture_failed') as any
+    err.details = j
+    throw err
   }
-  const data = (await res.json()) as { access_token?: string }
-  if (!data.access_token) throw new Error('PayPal OAuth: no access_token')
-  return data.access_token
+  return j
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') return res.status(405).end('Method Not Allowed')
-
-  const site = getSiteUrl(req)
+  const siteUrl = siteUrlFrom(req)
   try {
-    // PayPal sends ?token=EC-... which is the order id for v2/checkout/orders
     const orderId =
       (req.query.token as string) ||
-      (req.query.orderId as string) ||
-      ''
+      (req.query.orderID as string) ||
+      (req.query.orderId as string)
 
     if (!orderId) {
-      return res.redirect(
-        302,
-        `${site}/checkout?error=missing_order_id`
-      )
+      return res.redirect(302, `${siteUrl}/checkout?error=missing_order_id`)
     }
 
-    const access = await getAccessToken()
-    const { api } = getPaypalBase()
-
-    // Capture immediately on return
-    const capRes = await fetch(`${api}/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${access}`,
-        'Content-Type': 'application/json',
-        'PayPal-Request-Id': `cap-${Date.now()}`,
-      },
-    })
-
-    const json = await capRes.json().catch(() => ({}))
-    if (!capRes.ok) {
-      // Send them back to checkout with an error + order id so you can retry
-      return res.redirect(
-        302,
-        `${site}/checkout?error=paypal_capture_failed&orderId=${encodeURIComponent(orderId)}`
-      )
+    if (isTestMode()) {
+      const u = new URL(`${siteUrl}/thank-you`)
+      u.searchParams.set('provider', 'paypal')
+      u.searchParams.set('orderId', orderId)
+      u.searchParams.set('status', 'success')
+      u.searchParams.set('test', '1')
+      return res.redirect(302, u.toString())
     }
 
-    // Success → Thank you page
-    return res.redirect(
-      302,
-      `${site}/thank-you?provider=paypal&orderId=${encodeURIComponent(orderId)}`
-    )
-  } catch (err: any) {
-    console.error('paypal-return error:', err?.message || err)
-    return res.redirect(302, `${site}/checkout?error=paypal_return_fatal`)
+    await capture(orderId)
+
+    const u = new URL(`${siteUrl}/thank-you`)
+    u.searchParams.set('provider', 'paypal')
+    u.searchParams.set('orderId', orderId)
+    u.searchParams.set('status', 'success')
+    return res.redirect(302, u.toString())
+  } catch (e: any) {
+    console.error('paypal-return error', e?.details || e)
+    return res.redirect(302, `${siteUrl}/checkout?error=paypal_capture_failed`)
   }
 }
