@@ -1,40 +1,45 @@
-import mongoose, { Schema, Model, models } from 'mongoose'
+// src/models/Product.ts
+import mongoose, { Schema, models, model } from 'mongoose'
 
 export interface IProduct {
-  inventoryId: number
-  type?: 'MINIFIG' | 'PART' | 'SET' | string | null
-  categoryId?: number | null
-  itemNo?: string | null
-  name?: string | null
-  condition?: string | null
-  description?: string | null
-  remarks?: string | null
-  price?: number | null
-  qty: number
-  imageUrl?: string | null
+  _id?: any
+  inventoryId?: number            // BrickLink inventory id (if present)
+  categoryId?: number
+  type?: 'MINIFIG' | 'SET' | 'PART' | 'GEAR' | string
+  itemNo?: string
+  name?: string
+  condition?: 'N' | 'U' | string
+  price?: number
+  qty?: number
+  imageUrl?: string
+  remarks?: string                // BrickLink remarks (free text)
+  description?: string            // BrickLink description (HTML or text)
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 const ProductSchema = new Schema<IProduct>(
   {
-    inventoryId: { type: Number, required: true, unique: true },
-    type:        { type: String, index: true, default: null },
-    categoryId:  { type: Number, default: null },
-    itemNo:      { type: String, index: true, default: null },
-    name:        { type: String, default: null },
-    condition:   { type: String, default: null },
-    description: { type: String, default: null },
-    remarks:     { type: String, default: null },
-    price:       { type: Number, default: null },
-    qty:         { type: Number, default: 0 },
-    imageUrl:    { type: String, default: null },
+    inventoryId: { type: Number, index: true },
+    categoryId:  { type: Number, index: true },
+    type:        { type: String, index: true },
+    itemNo:      { type: String, index: true },
+    name:        { type: String, index: true },
+    condition:   { type: String, index: true },
+    price:       { type: Number, index: true },
+    qty:         { type: Number, default: 0, index: true },
+    imageUrl:    { type: String },
+    remarks:     { type: String },
+    description: { type: String },
   },
   { timestamps: true }
 )
 
-// Helpful compound indexes for your typical filters/sorts
-ProductSchema.index({ type: 1, updatedAt: -1 })
-ProductSchema.index({ type: 1, itemNo: 1 })
-ProductSchema.index({ name: 'text', itemNo: 'text', remarks: 'text', description: 'text' })
+// Helpful indexes for search/sort
+ProductSchema.index({ type: 1, qty: -1 })
+ProductSchema.index({ name: 1 })
+ProductSchema.index({ price: 1 })
 
-const Product: Model<IProduct> = models.Product || mongoose.model<IProduct>('Product', ProductSchema)
+// Avoid recompiling model in dev
+const Product = models.Product || model<IProduct>('Product', ProductSchema)
 export default Product
