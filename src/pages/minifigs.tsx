@@ -2,7 +2,7 @@ import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
@@ -22,22 +22,22 @@ type Props = {
   limit: number
   q: string
   cond: string
+  minPrice: string
+  maxPrice: string
+  sort: string
 }
 
-function decodeHtml(s?: string) {
-  if (!s) return ''
-  if (typeof window === 'undefined') {
-    // cheap decode for server render
-    return s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-            .replace(/&amp;/g,'&').replace(/&quot;/g,'"')
-            .replace(/&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-  }
-  const div = document.createElement('div')
-  div.innerHTML = s
-  return (div.textContent || div.innerText || '')
-}
-
-export default function MinifigsPage({ items, count, page, limit, q, cond }: Props) {
+export default function MinifigsPage({
+  items,
+  count,
+  page,
+  limit,
+  q,
+  cond,
+  minPrice,
+  maxPrice,
+  sort,
+}: Props) {
   const router = useRouter()
   const { add } = useCart()
   const qRef = useRef<HTMLInputElement>(null)
@@ -50,6 +50,9 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
     p.set('limit', String(limit))
     if (q) p.set('q', q)
     if (cond) p.set('cond', cond)
+    if (minPrice) p.set('minPrice', minPrice)
+    if (maxPrice) p.set('maxPrice', maxPrice)
+    if (sort) p.set('sort', sort)
     return `/minifigs?${p.toString()}`
   }
 
@@ -58,15 +61,29 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
     const fd = new FormData(e.currentTarget)
     const q = String(fd.get('q') || '').trim()
     const cond = String(fd.get('cond') || '')
+    const minPrice = String(fd.get('minPrice') || '').trim()
+    const maxPrice = String(fd.get('maxPrice') || '').trim()
+    const sort = String(fd.get('sort') || '').trim()
     const p = new URLSearchParams()
     p.set('page', '1')
     p.set('limit', String(limit))
     if (q) p.set('q', q)
     if (cond) p.set('cond', cond)
+    if (minPrice) p.set('minPrice', minPrice)
+    if (maxPrice) p.set('maxPrice', maxPrice)
+    if (sort) p.set('sort', sort)
     router.push(`/minifigs?${p.toString()}`)
   }
 
-  const hasItems = Array.isArray(items) && items.length > 0
+  // Client-side sort (also passes through ?sort=... so the API can honor it later)
+  const sortedItems = useMemo(() => {
+    const arr = Array.isArray(items) ? [...items] : []
+    if (sort === 'price_asc') arr.sort((a, b) => Number(a.price ?? 0) - Number(b.price ?? 0))
+    if (sort === 'price_desc') arr.sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0))
+    return arr
+  }, [items, sort])
+
+  const hasItems = sortedItems.length > 0
 
   return (
     <>
@@ -88,6 +105,35 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
             <option value="N">New</option>
             <option value="U">Used</option>
           </select>
+
+          <div className="priceGroup" title="Filter by price range">
+            <input
+              name="minPrice"
+              defaultValue={minPrice}
+              placeholder="Min $"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              className="priceInput"
+            />
+            <span className="dash">–</span>
+            <input
+              name="maxPrice"
+              defaultValue={maxPrice}
+              placeholder="Max $"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              className="priceInput"
+            />
+          </div>
+
+          <select name="sort" defaultValue={sort} className="select" title="Sort by price">
+            <option value="">Sort: Default</option>
+            <option value="price_asc">Price: Low → High</option>
+            <option value="price_desc">Price: High → Low</option>
+          </select>
+
           <button type="submit" className="btnPrimary">Apply</button>
           <Link className="btnGhost" href="/minifigs">Clear</Link>
 
@@ -99,53 +145,48 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
         {hasItems ? (
           <>
             <div className="grid">
-              {items.map((p) => {
-                const id = p.inventoryId ? String(p.inventoryId) : (p._id as string)
-                const title = decodeHtml(p.name || p.itemNo || 'Minifig')
-                return (
-                  <article key={id} className="card">
-                    <Link className="imgBox" href={`/minifig/${id}`} title={title}>
-                      {p.imageUrl ? (
-                        <Image
-                          src={p.imageUrl}
-                          alt={title}
-                          fill
-                          sizes="(max-width: 900px) 50vw, 240px"
-                          style={{ objectFit: 'contain' }}
-                        />
-                      ) : (
-                        <div className="noImg">No image</div>
-                      )}
-                    </Link>
+              {sortedItems.map((p) => (
+                <article key={p.inventoryId ?? p._id} className="card">
+                  <div className="imgBox">
+                    {p.imageUrl ? (
+                      <Image
+                        src={p.imageUrl}
+                        alt={p.name || p.itemNo || 'Minifig'}
+                        fill
+                        sizes="(max-width: 900px) 50vw, 240px"
+                        style={{ objectFit: 'contain' }}
+                      />
+                    ) : (
+                      <div className="noImg">No image</div>
+                    )}
+                  </div>
 
-                    <h3 className="name" title={title}>
-                      <Link href={`/minifig/${id}`}>{title}</Link>
-                    </h3>
+                  <h3 className="name" title={p.name}>
+                    {p.name || p.itemNo || 'Minifig'}
+                  </h3>
 
-                    <div className="priceRow">
-                      <span className="price">
-                        ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
-                      </span>
+                  <div className="priceRow">
+                    <span className="price">
+                      ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
+                    </span>
 
-                      <button
-                        className="addBtn"
-                        type="button"
-                        onClick={() =>
-                          add({
-                            id,
-                            name: title,
-                            price: Number(p.price ?? 0),
-                            qty: 1,
-                            imageUrl: p.imageUrl,
-                          })
-                        }
-                      >
-                        Add to cart
-                      </button>
-                    </div>
-                  </article>
-                )
-              })}
+                    <button
+                      className="addBtn"
+                      onClick={() =>
+                        add({
+                          id: p.inventoryId ? String(p.inventoryId) : (p._id as string),
+                          name: p.name ?? p.itemNo ?? 'Minifig',
+                          price: Number(p.price ?? 0),
+                          qty: 1,
+                          imageUrl: p.imageUrl,
+                        })
+                      }
+                    >
+                      Add to cart
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
 
             {pages > 1 && (
@@ -170,16 +211,17 @@ export default function MinifigsPage({ items, count, page, limit, q, cond }: Pro
         .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
         .text, .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
         .text { min-width:280px; }
+        .priceGroup { display:flex; align-items:center; gap:6px; }
+        .priceInput { width:96px; padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
+        .dash { color:#444; }
         .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; }
         .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
         .meta { margin-left:auto; font-size:13px; color:#333; }
         .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
         .card { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; gap:8px; }
-        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; display:block; }
+        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; }
         .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; font-size:14px; }
         .name { font-size:14px; margin:0 0 6px; min-height:34px; color:#1e1e1e; }
-        .name :global(a){ color:inherit; text-decoration:none; }
-        .name :global(a:hover){ text-decoration:underline; }
         .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; }
         .price { font-weight:700; color:#2a2a2a; }
         .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; }
@@ -202,6 +244,9 @@ export async function getServerSideProps(ctx: any) {
   const limit = Math.max(1, Math.min(72, Number(query.limit ?? 36)))
   const q = typeof query.q === 'string' ? query.q : ''
   const cond = typeof query.cond === 'string' ? query.cond : ''
+  const minPrice = typeof query.minPrice === 'string' ? query.minPrice : ''
+  const maxPrice = typeof query.maxPrice === 'string' ? query.maxPrice : ''
+  const sort = typeof query.sort === 'string' ? query.sort : ''
 
   const params = new URLSearchParams()
   params.set('type', 'MINIFIG')
@@ -209,6 +254,9 @@ export async function getServerSideProps(ctx: any) {
   params.set('limit', String(limit))
   if (q) params.set('q', q)
   if (cond) params.set('cond', cond)
+  if (minPrice) params.set('minPrice', minPrice)
+  if (maxPrice) params.set('maxPrice', maxPrice)
+  if (sort) params.set('sort', sort)
 
   let items: Item[] = []
   let count = 0
@@ -225,5 +273,5 @@ export async function getServerSideProps(ctx: any) {
     count = Number(data.count ?? arr.length ?? 0)
   }
 
-  return { props: { items, count, page, limit, q, cond } }
+  return { props: { items, count, page, limit, q, cond, minPrice, maxPrice, sort } }
 }
