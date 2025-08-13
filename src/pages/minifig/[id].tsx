@@ -1,73 +1,54 @@
 import Head from 'next/head'
 import Image from 'next/image'
-import Link from 'next/link'
-import type { GetServerSideProps } from 'next'
-import mongoose from 'mongoose'
 import dbConnect from '@/lib/dbConnect'
 import Product from '@/models/Product'
-import { useCart } from '@/context/CartContext'
 
 type Item = {
-  _id: string
-  inventoryId?: number | null
-  itemNo?: string | null
-  name?: string | null
-  price?: number | null
-  condition?: string | null
-  qty?: number | null
-  imageUrl?: string | null
-  remarks?: string | null
-  description?: string | null
+  _id?: string
+  inventoryId?: number
+  itemNo?: string
+  name?: string
+  price?: number
+  condition?: string
+  imageUrl?: string
+  description?: string
+  remarks?: string
+  qty?: number
   createdAt?: string
   updatedAt?: string
 }
 
-type Props = { item: Item | null }
+type Props = { item: Item }
 
 export default function MinifigDetail({ item }: Props) {
-  const { add } = useCart()
+  const titleBase = item?.name || item?.itemNo || 'Minifig'
+  const title = `${titleBase} — 1 Brick at a Time`
 
-  if (!item) {
-    return (
-      <>
-        <Head>
-          <title>{`Minifig not found — 1 Brick at a Time`}</title>
-        </Head>
-        <main className="wrap">
-          <p className="empty">Sorry, we couldn’t find that minifig.</p>
-          <Link className="btn" href="/minifigs">Back to Minifigs</Link>
-        </main>
-        <style jsx>{`
-          .wrap{ margin-left:64px; padding:22px 22px 120px; }
-          .empty{ margin:10px 0 16px; color:#333; }
-          .btn{ display:inline-block; border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:700; }
-        `}</style>
-      </>
-    )
-  }
-
-  const photo = item.imageUrl || ''
-  const price = Number(item.price ?? 0)
+  const para = (text?: string) =>
+    (text || '')
+      .split(/\r?\n/)
+      .map((line, idx) => (
+        <p key={idx} style={{ margin: '6px 0' }}>
+          {line}
+        </p>
+      ))
 
   return (
     <>
       <Head>
-        <title>{`${item.name || item.itemNo || 'Minifig'} — 1 Brick at a Time`}</title>
+        <title>{title}</title>
+        <meta name="description" content={item?.description || item?.remarks || titleBase} />
       </Head>
 
       <main className="wrap">
-        <nav className="crumbs">
-          <Link href="/minifigs">← Back to Minifigs</Link>
-        </nav>
-
-        <article className="sheet">
-          <div className="photo">
-            {photo ? (
+        <article className="card">
+          <div className="imgBox">
+            {item?.imageUrl ? (
               <Image
-                src={photo}
+                src={item.imageUrl}
                 alt={item.name || item.itemNo || 'Minifig'}
                 fill
-                sizes="(max-width: 900px) 90vw, 520px"
+                sizes="(max-width: 900px) 80vw, 400px"
                 style={{ objectFit: 'contain' }}
               />
             ) : (
@@ -75,101 +56,79 @@ export default function MinifigDetail({ item }: Props) {
             )}
           </div>
 
-          <div className="meta">
-            <h1 className="title">{item.name || item.itemNo || 'Minifig'}</h1>
-            <div className="sku">
-              {item.itemNo}
-              {item.condition ? ` • ${item.condition}` : ''}
+          <div className="info">
+            <h1 className="name">{item?.name || item?.itemNo || 'Minifig'}</h1>
+            <div className="meta">
+              {item?.itemNo && <span>#{item.itemNo}</span>}
+              {typeof item?.price === 'number' && <span>${item.price.toFixed(2)}</span>}
+              {item?.condition && <span>{item.condition}</span>}
+              {typeof item?.qty === 'number' && <span>Qty: {item.qty}</span>}
             </div>
 
-            <div className="priceRow">
-              <strong className="price">${price.toFixed(2)}</strong>
-              <button
-                className="addBtn"
-                onClick={() =>
-                  add({
-                    id: item.inventoryId ? String(item.inventoryId) : item._id,
-                    name: item.name ?? item.itemNo ?? 'Minifig',
-                    price,
-                    qty: 1,
-                    imageUrl: photo || undefined,
-                  })
-                }
-              >
-                Add to cart
-              </button>
-            </div>
+            {item?.description && (
+              <>
+                <h3>Description</h3>
+                <div className="text">{para(item.description)}</div>
+              </>
+            )}
 
-            {(item.remarks || item.description) && (
-              <section className="desc">
-                <h2>Description</h2>
-                <p className="text">
-                  {(item.remarks || item.description || '')
-                    .toString()
-                    .replace(/\r\n/g, '\n')
-                    .split('\n')
-                    .map((line, i) => <span key={i}>{line}<br/></span>)}
-                </p>
-              </section>
+            {item?.remarks && (
+              <>
+                <h3>Remarks</h3>
+                <div className="text">{para(item.remarks)}</div>
+              </>
             )}
           </div>
         </article>
       </main>
 
       <style jsx>{`
-        .wrap{ margin-left:64px; padding:22px 22px 120px; max-width:1200px; }
-        .crumbs a{ color:#204d69; font-weight:700; }
-        .sheet{ display:grid; grid-template-columns: 520px 1fr; gap:22px; align-items:start; }
-        .photo{ position:relative; width:100%; aspect-ratio:1/1; background:#f7f5f2; border-radius:12px; overflow:hidden; }
-        .noImg{ position:absolute; inset:0; display:grid; place-items:center; color:#666; }
-        .meta{ display:flex; flex-direction:column; gap:10px; }
-        .title{ margin:0; font-size:24px; line-height:1.15; color:#1e1e1e; }
-        .sku{ color:#555; font-weight:600; }
-        .priceRow{ display:flex; align-items:center; gap:14px; margin-top:6px; }
-        .price{ font-size:22px; color:#1a1a1a; }
-        .addBtn{ background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:10px 14px; border-radius:10px; font-weight:800; }
-        .desc{ margin-top:12px; }
-        .desc h2{ font-size:16px; margin:0 0 6px; }
-        .text{ color:#2a2a2a; white-space:pre-wrap; }
-        @media (max-width:1000px){
-          .sheet{ grid-template-columns:1fr; }
-          .photo{ max-width:520px; }
-        }
+        .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1100px; }
+        .card { display:grid; grid-template-columns: minmax(260px, 420px) 1fr; gap:20px; align-items:start; }
+        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; }
+        .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; font-size:14px; }
+        .info { display:flex; flex-direction:column; gap:10px; }
+        .name { margin:0; font-size:22px; line-height:1.2; }
+        .meta { display:flex; flex-wrap:wrap; gap:8px; color:#333; font-weight:600; }
+        .text :global(p){ margin:6px 0; color:#1b1b1b; }
+        @media (max-width:900px){ .wrap{ margin-left:64px; padding:14px 16px 110px; } .card{ grid-template-columns:1fr; } }
       `}</style>
     </>
   )
 }
 
-export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
-  const { id } = ctx.params as { id: string }
+export async function getServerSideProps(ctx: any) {
+  const { id } = ctx.params || {}
+  if (!id) return { notFound: true }
 
-  await dbConnect(process.env.MONGODB_URI as string)
+  const isNumeric = /^\d+$/.test(String(id))
+  await dbConnect(process.env.MONGODB_URI!)
 
-  // Accept numeric inventoryId and/or Mongo _id
-  const or: any[] = []
-  const n = Number(id)
-  if (!Number.isNaN(n)) or.push({ inventoryId: n })
-  if (mongoose.isValidObjectId(id)) {
-    or.push({ _id: new mongoose.Types.ObjectId(id) })
+  // Try both: numeric inventoryId OR Mongo _id
+  let doc =
+    isNumeric
+      ? await Product.findOne({ inventoryId: Number(id) }).lean()
+      : await Product.findById(id).lean()
+
+  if (!doc && isNumeric) {
+    // Fallback: sometimes inventoryId is stored as string
+    doc = await Product.findOne({ inventoryId: String(id) }).lean()
   }
 
-  // If neither is valid, force a miss
-  const doc = await Product.findOne(or.length ? { $or: or } : { _id: null }).lean()
+  if (!doc) return { notFound: true }
 
-  if (!doc) return { props: { item: null } }
-
-  // Make all values JSON-serializable (Dates -> ISO strings, no ObjectIds, etc.)
+  // Serialize dates safely; leave image exactly as-is
   const item: Item = {
-    _id: String(doc._id),
-    inventoryId: typeof doc.inventoryId === 'number' ? doc.inventoryId : null,
-    itemNo: doc.itemNo ?? null,
-    name: doc.name ?? null,
-    price: typeof doc.price === 'number' ? doc.price : null,
-    condition: doc.condition ?? null,
-    qty: typeof doc.qty === 'number' ? doc.qty : null,
-    imageUrl: doc.imageUrl ?? null, // keep photos exactly as stored
-    remarks: (doc as any).remarks ?? (doc as any).blRemarks ?? null,
-    description: (doc as any).description ?? null,
+    _id: doc._id?.toString?.() ?? doc._id,
+    inventoryId: typeof doc.inventoryId === 'number' ? doc.inventoryId : Number(doc.inventoryId ?? 0) || undefined,
+    itemNo: doc.itemNo,
+    name: doc.name,
+    price: typeof doc.price === 'number' ? doc.price : Number(doc.price ?? 0),
+    condition: doc.condition,
+    imageUrl: doc.imageUrl,
+    description: doc.description,
+    remarks: doc.remarks,
+    qty: typeof doc.qty === 'number' ? doc.qty : Number(doc.qty ?? 0),
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : undefined,
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : undefined,
   }
