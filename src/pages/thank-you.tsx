@@ -1,190 +1,287 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Head from 'next/head'
-import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 
-const BANK = {
-  name: process. PAYPAL_CLIENT_SECRET_REDACTED|| process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
-  bsb: process. PAYPAL_CLIENT_SECRET_REDACTED|| process.env.BANK_DEPOSIT_BSB || '',
-  account: process. PAYPAL_CLIENT_SECRET_REDACTED|| process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
-  hint: process. PAYPAL_CLIENT_SECRET_REDACTED|| process. PAYPAL_CLIENT_SECRET_REDACTED|| '',
+type CaptureOk = {
+  ok: true
+  orderId: string
+  status?: string
+  totals?: {
+    items: number
+    postage?: number
+    shipping?: number
+    grandTotal?: number
+    currency?: string
+  }
 }
 
-type CaptureState =
-  | { kind: 'idle' }
-  | { kind: 'capturing' }
-  | { kind: 'ok'; data: any }
-  | { kind: 'error'; message: string }
+type CaptureErr = {
+  ok: false
+  error: string
+  message?: string
+}
+
+type CaptureResponse = CaptureOk | CaptureErr
+
+function getOrderIdFromQuery(query: Record<string, any>): string | null {
+  // we support a few spellings just in case:
+  //   ?orderId=... (preferred)
+  //   ?orderid=...
+  //   ?token=...   (paypal sometimes returns token)
+  const raw =
+    (query.orderId as string) ||
+    (query.orderid as string) ||
+    (query.token as string) ||
+    ''
+  return raw ? String(raw) : null
+}
 
 export default function ThankYouPage() {
-  const { query, replace } = useRouter()
-  const [cap, setCap] = useState<CaptureState>({ kind: 'idle' })
+  const router = useRouter()
+  const [status, setStatus] = useState<
+    'idle' | 'checking' | 'capturing' | 'success' | 'already' | 'error'
+  >('checking')
+  const [msg, setMsg] = useState<string>('')
+  const [totals, setTotals] = useState<CaptureOk['totals'] | undefined>()
+  const [orderId, setOrderId] = useState<string | null>(null)
+  const fired = useRef(false)
 
-  const info = useMemo(() => {
-    const provider = (query.provider as string) || 'unknown'
-    const status   = (query.status as string)   || 'unknown'
-    // PayPal returns ?token=<orderId>; some flows can use ?orderId=
-    const orderId  = (query.orderId as string)  || (query.token as string) || (query.session_id as string) || ''
-    const total    = (query.total as string)    || ''
-    return { provider, status, orderId, total }
-  }, [query])
+  // keep orderId stable as the router hydrates
+  const stableOrderId = useMemo(() => {
+    const oid = getOrderIdFromQuery(router.query as any)
+    return oid
+  }, [router.query])
 
-  // Auto-capture for PayPal on success if we have a token/orderId
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    setOrderId(stableOrderId || null)
+  }, [stableOrderId])
 
-    if (info.provider === 'paypal' && info.status === 'success' && info.orderId && cap.kind === 'idle') {
-      const abort = new AbortController()
-      ;(async () => {
-        try {
-          setCap({ kind: 'capturing' })
-          const r = await fetch(`/api/checkout/paypal-capture?orderId=${encodeURIComponent(info.orderId)}`, {
-            method: 'POST',
-            signal: abort.signal,
-            headers: { 'Content-Type': 'application/json' },
-          })
-          const text = await r.text()
-          if (!r.ok) throw new Error(text || `Capture failed (${r.status})`)
-          const data = JSON.parse(text)
-          setCap({ kind: 'ok', data })
+  useEffect(() => {
+    // only attempt once we have an orderId
+    if (!orderId) return
 
-          // Optional: remove the token from the URL so refreshes don’t re-capture
-          const { provider, status, total } = info
-          const clean = new URL(window.location.href)
-          clean.searchParams.delete('token')
-          clean.searchParams.delete('orderId')
-          replace(clean.pathname + clean.search, undefined, { shallow: true })
-        } catch (err: any) {
-          setCap({ kind: 'error', message: err?.message || String(err) })
+    // guard against hydration double-run and user refresh spam
+    if (fired.current) return
+    fired.current = true
+
+    const doCapture = async () => {
+      setStatus('capturing')
+      setMsg('Finalizing your order…')
+
+      try {
+        const res = await fetch('/api/checkout/paypal-capture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId }),
+        })
+
+        const json = (await res.json()) as CaptureResponse
+
+        // normalize a few backend outcomes so the UI is stable:
+        //  - ok:true => success
+        //  - ok:false but error looks like "already_captured" / "imported" => treat as already
+        //  - anything else => error
+        if ('ok' in json && json.ok) {
+          setTotals(json.totals)
+          setStatus('success')
+          setMsg('Payment captured and order saved. Thank you!')
+          return
         }
-      })()
-      return () => abort.abort()
-    }
-  //  PAYPAL_CLIENT_SECRET_REDACTEDreact-hooks/exhaustive-deps
-  }, [info.provider, info.status, info.orderId])
 
-  const title =
-    info.status === 'success' ? `Thank you — 1 Brick at a Time`
-    : info.status === 'cancelled' ? `Order cancelled — 1 Brick at a Time`
-    : `Order status — 1 Brick at a Time`
+        const lowErr = (json as CaptureErr).error?.toLowerCase() || ''
+        if (
+          lowErr.includes('already') ||
+          lowErr.includes('imported') ||
+          lowErr.includes('exists') ||
+          lowErr.includes('duplicate')
+        ) {
+          setStatus('already')
+          setMsg('Order already captured/imported. You’re all set!')
+          return
+        }
+
+        setStatus('error')
+        setMsg(
+          (json as CaptureErr).message ||
+            (json as CaptureErr).error ||
+            'Something went wrong while finishing your order.'
+        )
+      } catch (e: any) {
+        setStatus('error')
+        setMsg(e?.message || 'Network error while contacting the server.')
+      }
+    }
+
+    doCapture()
+  }, [orderId])
+
+  const retry = () => {
+    fired.current = false
+    setStatus('checking')
+    setMsg('')
+    // kick the effect again
+    setTimeout(() => {
+      if (orderId) {
+        fired.current = false
+        setStatus('idle')
+        // force a state change to re-run effect
+        setOrderId(orderId)
+      }
+    }, 0)
+  }
 
   return (
     <>
       <Head>
-        <title>{title}</title>
-        <meta name="robots" content="noindex" />
+        <title>Order status — 1 Brick at a Time</title>
+        <meta
+          name="description"
+          content="Order confirmation and payment status for your purchase."
+        />
       </Head>
 
-      <main style={{maxWidth: 900, margin:'24px auto', padding:'0 24px'}}>
-        {info.status === 'success' ? (
+      <main className="wrap" style={{ padding: '2rem 0' }}>
+        <h1>Order status</h1>
+
+        {!orderId && (
+          <p>
+            We couldn’t find an order id in the URL. You can head back to{' '}
+            <Link href="/checkout">checkout</Link> or{' '}
+            <Link href="/minifigs">browse minifigs</Link>.
+          </p>
+        )}
+
+        {orderId && (
           <>
-            <h1 style={{margin:'0 0 8px'}}>Thank you for your order!</h1>
-            <p style={{margin:'0 0 16px', color:'#333'}}>
-              We’ve received your order{info.orderId ? ` (ref: ${info.orderId})` : ''}.
-              {info.total ? ` Total: ${info.total}` : ''} You’ll get an email shortly.
-            </p>
+            {status === 'checking' || status === 'capturing' ? (
+              <p>{msg || 'Checking your order…'}</p>
+            ) : null}
 
-            {info.provider === 'paypal' && (
-              <CaptureBanner cap={cap} />
-            )}
+            {status === 'success' && (
+              <div className="card">
+                <p style={{ marginBottom: '0.5rem' }}>{msg}</p>
+                {!!totals && (
+                  <ul style={{ margin: 0, paddingLeft: '1.2rem' }}>
+                    <li>
+                      Items:{' '}
+                      {totals.items.toLocaleString(undefined, {
+                        style: 'currency',
+                        currency: totals.currency || 'AUD',
+                      })}
+                    </li>
+                    {typeof totals.postage === 'number' && (
+                      <li>
+                        Postage:{' '}
+                        {totals.postage.toLocaleString(undefined, {
+                          style: 'currency',
+                          currency: totals.currency || 'AUD',
+                        })}
+                      </li>
+                    )}
+                    {typeof totals.shipping === 'number' && (
+                      <li>
+                        Shipping:{' '}
+                        {totals.shipping.toLocaleString(undefined, {
+                          style: 'currency',
+                          currency: totals.currency || 'AUD',
+                        })}
+                      </li>
+                    )}
+                    {typeof totals.grandTotal === 'number' && (
+                      <li>
+                        Total:{' '}
+                        {totals.grandTotal.toLocaleString(undefined, {
+                          style: 'currency',
+                          currency: totals.currency || 'AUD',
+                        })}
+                      </li>
+                    )}
+                  </ul>
+                )}
 
-            {info.provider === 'bank' && (BANK.name || BANK.bsb || BANK.account) && (
-              <section style={{
-                border:'1px solid #c9c3b9', background:'#fff', padding:16, borderRadius:8, margin:'16px 0'
-              }}>
-                <h2 style={{margin:'0 0 8px', fontSize:18}}>Bank deposit details</h2>
-                <div style={{lineHeight:1.8}}>
-                  {BANK.name && <div><strong>Account name:</strong> {BANK.name}</div>}
-                  {BANK.bsb && <div><strong>BSB:</strong> {BANK.bsb}</div>}
-                  {BANK.account && <div><strong>Account number:</strong> {BANK.account}</div>}
-                  {info.orderId && <div><strong>Reference:</strong> {info.orderId}</div>}
-                  {BANK.hint && <div><em>{BANK.hint}</em></div>}
+                <div style={{ marginTop: '1rem', display: 'flex', gap: 12 }}>
+                  <Link className="btn" href="/minifigs">
+                    Browse minifigs
+                  </Link>
+                  <Link className="btn" href="/checkout">
+                    Go to checkout
+                  </Link>
                 </div>
-              </section>
+              </div>
             )}
 
-            <div style={{display:'flex', gap:12}}>
-              <Link href="/minifigs?type=MINIFIG&limit=36"><button style={btn()}>Continue shopping</button></Link>
-              <Link href="/checkout"><button style={btn('ghost')}>View cart/receipt</button></Link>
-            </div>
-          </>
-        ) : info.status === 'cancelled' ? (
-          <>
-            <h1 style={{margin:'0 0 8px'}}>Checkout cancelled</h1>
-            <p style={{margin:'0 0 16px', color:'#333'}}>No worries—your cart is still here if you want to try again.</p>
-            <div style={{display:'flex', gap:12}}>
-              <Link href="/checkout"><button style={btn()}>Return to checkout</button></Link>
-              <Link href="/minifigs?type=MINIFIG&limit=36"><button style={btn('ghost')}>Keep browsing</button></Link>
-            </div>
-          </>
-        ) : (
-          <>
-            <h1 style={{margin:'0 0 8px'}}>Order status</h1>
-            <p style={{margin:'0 0 16px', color:'#333'}}>We’re not sure yet—try refreshing this page, or head back to checkout.</p>
-            <div style={{display:'flex', gap:12}}>
-              <Link href="/checkout"><button style={btn()}>Go to checkout</button></Link>
-              <Link href="/minifigs?type=MINIFIG&limit=36"><button style={btn('ghost')}>Browse minifigs</button></Link>
-            </div>
+            {status === 'already' && (
+              <div className="card">
+                <p>{msg}</p>
+                <div style={{ marginTop: '1rem', display: 'flex', gap: 12 }}>
+                  <Link className="btn" href="/minifigs">
+                    Browse minifigs
+                  </Link>
+                  <Link className="btn" href="/checkout">
+                    Go to checkout
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {status === 'error' && (
+              <div className="card">
+                <p style={{ color: '#a00' }}>{msg}</p>
+                <div style={{ marginTop: '1rem', display: 'flex', gap: 12 }}>
+                  <button className="btn" onClick={retry}>
+                    Try again
+                  </button>
+                  <Link className="btn" href="/checkout">
+                    Go to checkout
+                  </Link>
+                </div>
+                <p style={{ marginTop: 8, opacity: 0.7, fontSize: 14 }}>
+                  Order ID: <code>{orderId}</code>
+                </p>
+              </div>
+            )}
+
+            {(status === 'idle' || status === 'checking' || status === 'capturing') && (
+              <div style={{ marginTop: 16 }}>
+                <Link className="btn" href="/minifigs">
+                  Browse minifigs
+                </Link>{' '}
+                <Link className="btn" href="/checkout">
+                  Go to checkout
+                </Link>
+              </div>
+            )}
           </>
         )}
       </main>
+
+      <style jsx>{`
+        .wrap {
+          max-width: 1120px;
+          margin: 0 auto;
+          padding: 0 16px;
+        }
+        .card {
+          background: #fffdf8;
+          border: 1px solid #e6dcc6;
+          border-radius: 12px;
+          padding: 16px 20px;
+          max-width: 520px;
+        }
+        .btn {
+          display: inline-block;
+          padding: 8px 14px;
+          border-radius: 8px;
+          background: #e2b14f;
+          color: #111;
+          text-decoration: none;
+          border: 1px solid #b98d39;
+        }
+        .btn:hover {
+          filter: brightness(0.97);
+        }
+      `}</style>
     </>
   )
-}
-
-function CaptureBanner({ cap }: { cap: CaptureState }) {
-  if (cap.kind === 'idle') return null
-  if (cap.kind === 'capturing') {
-    return (
-      <div style={banner('#fff3cd', '#856404')}>
-        Capturing PayPal payment…
-      </div>
-    )
-  }
-  if (cap.kind === 'ok') {
-    return (
-      <div style={banner('#d4edda', '#155724')}>
-        PayPal payment captured. Thank you!
-      </div>
-    )
-  }
-  return (
-    <div style={banner('#f8d7da', '#721c24')}>
-      PayPal capture failed. You can retry from your account, or contact us. ({cap.message})
-    </div>
-  )
-}
-
-function banner(bg: string, fg: string): React.CSSProperties {
-  return {
-    background: bg,
-    color: fg,
-    padding: '12px 14px',
-    borderRadius: 8,
-    margin: '12px 0',
-    border: `1px solid rgba(0,0,0,.08)`,
-  }
-}
-
-function btn(kind: 'solid'|'ghost' = 'solid'): React.CSSProperties {
-  if (kind === 'ghost') {
-    return {
-      background: 'transparent',
-      border: '2px solid #1f5376',
-      color: '#1f5376',
-      padding: '10px 16px',
-      borderRadius: 8,
-      fontWeight: 600,
-      cursor: 'pointer',
-    }
-  }
-  return {
-    background: '#e1b946',
-    border: '2px solid #a2801a',
-    color: '#1a1a1a',
-    padding: '10px 16px',
-    borderRadius: 8,
-    fontWeight: 700,
-    cursor: 'pointer',
-  }
 }
