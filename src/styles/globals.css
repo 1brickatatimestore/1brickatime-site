@@ -1,37 +1,76 @@
-/* ---- Tokens ---- */
-:root{
-  --rail: 72px;
+/* ==== Global styles (full file) ========================================= */
 
-  --bg: #dbcbb3;               /* parchment background */
-  --ink: #1b1b1b;              /* primary text */
-  --muted: #6a5f52;
-  --brand: #c65248;            /* the ‘time.’ accent */
-  --gold: #e0b341;
+/* Fonts used on the site */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Great+Vibes&display=swap');
 
-  --header-bg: #0f4d5a;        /* deep teal header */
-  --header-ink: #e9f2f4;
+/* Theme tokens */
+:root {
+  /* fonts */
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+               "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --font-script: "Great Vibes", "Brush Script MT", "Segoe Script", cursive;
 
-  --footer-bg: #124f63;        /* footer blue */
-  --footer-ink: #eaf4f7;
+  /* colors (kept neutral so we don't fight your layout) */
+  --cream-ink: #3f3a33;
+  --gold: #f2c14d;
+  --gold-ink: #3b2f16;
 
-  --card: #eee2cf;
-  --card-border: rgba(0,0,0,.08);
+  /* shadows */
+  --halo: rgba(0, 0, 0, .06);
 }
 
-/* ---- Reset-ish ---- */
-* { box-sizing: border-box; }
+/* reset-ish */
+*, *::before, *::after { box-sizing: border-box; }
 html, body, #__next { height: 100%; }
 html, body {
   margin: 0;
-  color: var(--ink);
-  background: var(--bg);
-  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  padding: 0;
+  font-family: var(--font-sans);
+  color: var(--cream-ink);
+  background: #111; /* outside your cream canvas; your layout sets the rest */
 }
-a { color: inherit; text-decoration: none; }
-button { font: inherit; }
 
-/* ---- Utilities you may already rely on ---- */
-.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
-.sr-only {
-  position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden;
+img, svg { vertical-align: middle; }
+
+/* default links */
+a { color: #1a4d6d; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* utility: visually hidden (kept for a11y if needed) */
+.visuallyHidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden; clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap; border: 0; padding: 0; margin: -1px;
 }
+
+/* Buttons — used by the home page “Shop Now / See All Items”.
+   Keeping names generic so your existing markup still works. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 700;
+  line-height: 1;
+  border: 2px solid transparent;
+  box-shadow: 0 1px 0 var(--halo), 0 1px 6px var(--halo);
+  cursor: pointer;
+}
+
+.btnGold {
+  background: var(--gold);
+  color: var(--gold-ink);
+  border-color: #d2a93b;
+}
+.btnGold:hover { filter: brightness(0.97); text-decoration: none; }
+
+.btnOutline {
+  background: #f0f4f7;
+  border-color: #cdd8df;
+  color: #1a3e4a;
+}
+.btnOutline:hover { background: #e6edf2; }

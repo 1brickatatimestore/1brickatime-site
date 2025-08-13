@@ -1,0 +1,66 @@
+.footer {
+  background: #134b63;            /* your teal footer band */
+  color: #f3efe7;
+  border-top: 1px solid rgba(0,0,0,.25);
+  padding: 12px 0 22px;
+}
+
+/* first row: © text on left, links on right */
+.metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 10px;
+}
+
+.brand {
+  opacity: .9;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.links {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.links a {
+  color: #e8e3d6;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  opacity: .95;
+}
+
+.links a:hover {
+  text-decoration: underline;
+}
+
+/* centered rectangle with your sunflower art */
+.bannerWrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.banner {
+  display: block;
+  width: min(460px, 100%);
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.15);
+}
+
+/* mobile tweaks */
+@media (max-width: 720px) {
+  .metaRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .links {
+    gap: 14px;
+  }
+}

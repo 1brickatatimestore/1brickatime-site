@@ -1,56 +1,67 @@
 import Link from 'next/link'
-import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
 import s from './SiteLayout.module.css'
 
-const CartFloat = dynamic(() => import('./CartFloat'), { ssr: false })
+// Do NOT change: this keeps whatever cart pill you liked.
+// It simply renders whatever your current CartFloat/CartBadge shows.
+let CartBadge: any = null
+try {
+  // If you still have CartFloat only, this shim will resolve through CartBadge.tsx
+  // (export { default } from './CartFloat' )
+  // or directly to CartFloat if you import it here.
+  // We keep dynamic import out to avoid SSR mismatch warnings.
+  CartBadge = require('./CartBadge').default || null
+} catch (_) {
+  try { CartBadge = require('./CartFloat').default || null } catch (_e) {}
+}
 
 type Props = { children: ReactNode }
 
 export default function SiteLayout({ children }: Props) {
   return (
-    <div className={s.shell}>
-      {/* Left stud rail */}
-      <div className={s.rail} aria-hidden="true" />
+    <div className={s.page}>
+      {/* Left studs rail */}
+      <aside className={s.studs} aria-hidden="true" />
 
       {/* Header */}
       <header className={s.header}>
-        <div className={`${s.headerInner} container`}>
+        <div className={s.headerInner}>
           <Link href="/" className={s.brand}>
-            <span className={s.brandLogo} aria-hidden />
-            <span className={s.brandName}>1 Brick at a Time</span>
+            {/* small round logo + name exactly like your screenshot */}
+            <img src="/logo-1brickatime.png" alt="1 Brick at a Time" className={s.brandLogo} />
+            <span className={s.brandText}>1 Brick at a Time</span>
           </Link>
 
           <nav className={s.nav}>
-            <Link href="/">Home</Link>
-            <Link href="/minifigs">Minifigs</Link>
-            <Link href="/minifigs-by-theme">Minifigs by Theme</Link>
-            <Link href="/checkout">Checkout</Link>
+            <Link href="/" className={s.navLink}>Home</Link>
+            <Link href="/minifigs" className={s.navLink}>Minifigs</Link>
+            <Link href="/minifigs-by-theme" className={s.navLink}>By Theme</Link>
+            <Link href="/checkout" className={s.navLink}>Checkout</Link>
           </nav>
 
-          <CartFloat />
+          <div className={s.cartSpot}>
+            {/* Keep your current trolley untouched */}
+            {CartBadge ? <CartBadge /> : null}
+          </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className={`${s.main} container`}>{children}</main>
-
-      {/* Footer (blue bar w/ CTA) */}
-      <footer className={s.footer}>
-        <div className={`${s.footerInner} container`}>
-          <div className={s.copy}>© 2025 K & K Enterprises · 1 Brick at a Time</div>
-          <div className={s.links}>
-            <Link href="/shipping">Shipping</Link>
-            <Link href="/returns">Returns</Link>
-            <Link href="/contact">Contact</Link>
-          </div>
+      {/* Main cream content area */}
+      <main className={s.main}>
+        <div className={s.container}>
+          {children}
         </div>
+      </main>
 
-        <div className={s.ctaBar}>
-          <button type="button" className={s.ctaButton} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-            <span className={s.sunflower} aria-hidden />
-            Build alongside us!
-          </button>
+      {/* Footer with teal bar and sunflower banner centered inside */}
+      <footer className={s.footer}>
+        <div className={s.footerInner}>
+          <img
+            src="/footer-banner.png"
+            alt="Build alongside us!"
+            className={s.footerBanner}
+            decoding="async"
+          />
         </div>
       </footer>
     </div>
