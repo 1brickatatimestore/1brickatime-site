@@ -1,237 +1,235 @@
+import { GetServerSideProps } from 'next'
 import Head from 'next/head'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { useRef } from 'react'
+import { FormEvent, useMemo, useState } from 'react'
 import { useCart } from '@/context/CartContext'
 
 type Item = {
-  _id?: string
+  _id: string
   inventoryId?: number
-  name?: string
-  itemNo?: string
-  price?: number
+  itemNo: string
+  name: string
+  imageUrl: string
+  price: number
   condition?: string
-  imageUrl?: string
+  qty: number
 }
 
-type Props = {
+type PageProps = {
   items: Item[]
   count: number
   page: number
   limit: number
   q: string
   cond: string
-  minPrice: string
-  maxPrice: string
-  sort: string
+  onlyInStock: boolean
+  sort?: string | null
+  minPrice?: number | null
+  maxPrice?: number | null
 }
 
-export default function MinifigsPage(props: Props) {
-  const { items, count, page, limit, q, cond, minPrice, maxPrice, sort } = props
+function detailHref(it: Item) {
+  const id = (it.inventoryId ?? it._id).toString()
+  return `/minifig/${encodeURIComponent(id)}`
+}
+
+export default function MinifigsPage(props: PageProps) {
   const router = useRouter()
   const { add } = useCart()
-  const qRef = useRef<HTMLInputElement>(null)
-  const pages = Math.max(1, Math.ceil(count / Math.max(1, limit)))
-  const hasItems = Array.isArray(items) && items.length > 0
+  const [q, setQ] = useState(props.q || '')
+  const [cond, setCond] = useState(props.cond || '')
+  const [onlyInStock, setOnlyInStock] = useState(props.onlyInStock || false)
+  const [limit, setLimit] = useState(props.limit || 36)
+  const [minPrice, setMinPrice] = useState(props.minPrice ?? '')
+  const [maxPrice, setMaxPrice] = useState(props.maxPrice ?? '')
+  const [sort, setSort] = useState(props.sort || 'name_asc')
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+  const pages = useMemo(() => Math.max(1, Math.ceil(props.count / props.limit)), [props.count, props.limit])
+
+  function onSubmit(e: FormEvent) {
     e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const p = new URLSearchParams()
-    p.set('page', '1')
-    p.set('limit', String(fd.get('limit') || limit || 36))
-    const q = String(fd.get('q') || '').trim()
-    const cond = String(fd.get('cond') || '')
-    const min = String(fd.get('minPrice') || '').trim()
-    const max = String(fd.get('maxPrice') || '').trim()
-    const sort = String(fd.get('sort') || '')
-    p.set('type', 'MINIFIG')
-    if (q) p.set('q', q)
-    if (cond) p.set('cond', cond)
-    if (min) p.set('minPrice', min)
-    if (max) p.set('maxPrice', max)
-    if (sort) p.set('sort', sort)
-    router.push(`/minifigs?${p.toString()}`)
-  }
-
-  const hrefForPage = (n: number) => {
-    const p = new URLSearchParams()
-    p.set('type', 'MINIFIG')
-    p.set('page', String(n))
-    p.set('limit', String(limit))
-    if (q) p.set('q', q)
-    if (cond) p.set('cond', cond)
-    if (minPrice) p.set('minPrice', minPrice)
-    if (maxPrice) p.set('maxPrice', maxPrice)
-    if (sort) p.set('sort', sort)
-    return `/minifigs?${p.toString()}`
+    const params = new URLSearchParams()
+    params.set('type', 'MINIFIG')
+    if (q) params.set('q', q)
+    if (cond) params.set('cond', cond)
+    if (onlyInStock) params.set('onlyInStock', '1')
+    if (minPrice !== '') params.set('minPrice', String(minPrice))
+    if (maxPrice !== '') params.set('maxPrice', String(maxPrice))
+    if (sort) params.set('sort', sort)
+    params.set('page', '1')
+    params.set('limit', String(limit))
+    router.push(`/minifigs?${params.toString()}`)
   }
 
   return (
     <>
-      <Head><title>Minifigs — 1 Brick at a Time</title></Head>
+      <Head>
+        <title>Minifigs — 1 Brick at a Time</title>
+      </Head>
 
       <main className="wrap">
-        <form className="filters" onSubmit={submit}>
-          <input name="q" defaultValue={q} placeholder="Search name or number…" className="text" ref={qRef} />
-          <select name="cond" defaultValue={cond} className="select">
+        <form className="filters" onSubmit={onSubmit}>
+          <input
+            className="input"
+            placeholder="Search name or number…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(e as any) }}
+          />
+
+          <select className="select" value={cond} onChange={(e) => setCond(e.target.value)}>
             <option value="">Any condition</option>
             <option value="N">New</option>
             <option value="U">Used</option>
           </select>
 
-          <input name="minPrice" defaultValue={minPrice} inputMode="decimal" placeholder="Min $" className="num" />
-          <input name="maxPrice" defaultValue={maxPrice} inputMode="decimal" placeholder="Max $" className="num" />
-
-          <select name="sort" defaultValue={sort || 'name_asc'} className="select">
-            <option value="name_asc">Name A → Z</option>
-            <option value="name_desc">Name Z → A</option>
-            <option value="price_asc">Price low → high</option>
-            <option value="price_desc">Price high → low</option>
+          <select className="select" value={sort} onChange={(e) => setSort(e.target.value)}>
+            <option value="name_asc">Name A–Z</option>
+            <option value="name_desc">Name Z–A</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
           </select>
 
-          <select name="limit" defaultValue={String(limit)} className="select">
-            <option value="36">36</option>
-            <option value="72">72</option>
+          <label className="check">
+            <input type="checkbox" checked={onlyInStock} onChange={(e) => setOnlyInStock(e.target.checked)} /> Only in stock
+          </label>
+
+          <input
+            className="num"
+            type="number"
+            placeholder="Min $"
+            min="0"
+            step="0.01"
+            value={String(minPrice)}
+            onChange={(e) => setMinPrice(e.target.value === '' ? '' : Number(e.target.value))}
+          />
+          <input
+            className="num"
+            type="number"
+            placeholder="Max $"
+            min="0"
+            step="0.01"
+            value={String(maxPrice)}
+            onChange={(e) => setMaxPrice(e.target.value === '' ? '' : Number(e.target.value))}
+          />
+
+          <select className="select" value={limit} onChange={(e) => setLimit(Number(e.target.value))}>
+            <option value={36}>36</option>
+            <option value={72}>72</option>
+            <option value={108}>108</option>
           </select>
 
-          <button type="submit" className="btnPrimary">Apply</button>
-          <Link className="btnGhost" href="/minifigs">Clear</Link>
-
-          <span className="meta">{count} items • Page {page}/{pages}</span>
+          <button className="btn" type="submit">Apply</button>
+          <button
+            className="btn ghost"
+            type="button"
+            onClick={() => router.push('/minifigs')}
+          >
+            Clear
+          </button>
         </form>
 
-        {hasItems ? (
-          <>
-            <div className="grid">
-              {items.map(p => {
-                const id = p.inventoryId ? String(p.inventoryId) : (p._id as string)
-                const detailsHref = `/minifig/${id}`
-                return (
-                  <article key={id} className="card">
-                    <Link className="clickArea" href={detailsHref} aria-label={`Open ${p.name || p.itemNo}`} />
+        <div className="meta">
+          {props.count} items • Page {props.page}/{pages}
+        </div>
 
-                    <div className="imgBox" title="Open details">
-                      {p.imageUrl ? (
-                        <Image
-                          src={p.imageUrl}
-                          alt={p.name || p.itemNo || 'Minifig'}
-                          fill
-                          sizes="(max-width: 900px) 50vw, 240px"
-                          style={{ objectFit: 'contain' }}
-                        />
-                      ) : <div className="noImg">No image</div>}
-                    </div>
+        <section className="grid">
+          {props.items.map((it) => (
+            <article key={(it.inventoryId ?? it._id).toString()} className="card">
+              <Link href={detailHref(it)} className="thumbLink" aria-label={`Open ${it.name}`}>
+                <div className="thumb">
+                  {/* Square, proportional image */}
+                  <img src={it.imageUrl} alt={it.name} />
+                </div>
+              </Link>
 
-                    <h3 className="name">
-                      <Link href={detailsHref}>{p.name || p.itemNo || 'Minifig'}</Link>
-                    </h3>
+              <h3 className="title">
+                <Link href={detailHref(it)}>{it.name}</Link>
+              </h3>
 
-                    <div className="priceRow">
-                      <span className="price">
-                        ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
-                      </span>
+              <div className="price">
+                ${it.price.toFixed(2)} {!it.condition ? '' : `• ${it.condition}`}
+              </div>
 
-                      <button
-                        type="button"
-                        className="addBtn"
-                        onClick={() => add({
-                          id, name: p.name ?? p.itemNo ?? 'Minifig',
-                          price: Number(p.price ?? 0), qty: 1, imageUrl: p.imageUrl
-                        })}
-                      >
-                        Add to cart
-                      </button>
-                    </div>
-
-                    <div className="row">
-                      <Link className="details" href={detailsHref}>Details</Link>
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-
-            {pages > 1 && (
-              <nav className="pager" aria-label="Pagination">
-                <Link className="pbtn" href={hrefForPage(Math.max(1, page - 1))} aria-disabled={page <= 1}>← Prev</Link>
-                <span className="pmeta">Page {page} / {pages}</span>
-                <Link className="pbtn" href={hrefForPage(Math.min(pages, page + 1))} aria-disabled={page >= pages}>Next →</Link>
-              </nav>
-            )}
-          </>
-        ) : (
-          <p className="empty">No items found.</p>
-        )}
+              <div className="row">
+                <button
+                  className="btn"
+                  onClick={() => add({
+                    id: (it.inventoryId ?? it._id).toString(),
+                    itemNo: it.itemNo,
+                    name: it.name,
+                    price: it.price,
+                    imageUrl: it.imageUrl,
+                    qty: 1,
+                    maxQty: Math.max(0, it.qty ?? 0),
+                  })}
+                >
+                  Add to cart
+                </button>
+                <Link className="btn ghost" href={detailHref(it)}>Details</Link>
+              </div>
+            </article>
+          ))}
+        </section>
       </main>
 
       <style jsx>{`
-        .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
-        .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
-        .text, .select, .num { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
-        .text { min-width:260px; }
-        .num { width:100px; }
-        .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; cursor:pointer; }
-        .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
-        .meta { margin-left:auto; font-size:13px; color:#333; }
-        .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
-        .card { position:relative; background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; gap:8px; }
-        .clickArea { position:absolute; inset:0 0 64px 0; /* whole card except button row */ z-index:1; }
-        .imgBox { position:relative; width:100%; padding-top:100%; background:#f7f5f2; border-radius:10px; overflow:hidden; cursor:pointer; }
-        .noImg { position:absolute; inset:0; display:grid; place-items:center; color:#666; font-size:14px; }
-        .name { font-size:14px; margin:0 0 6px; min-height:34px; color:#1e1e1e; }
-        .name :global(a){ color:#1e1e1e; }
-        .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; z-index:2; }
-        .price { font-weight:700; color:#2a2a2a; }
-        .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; cursor:pointer; }
-        .row { margin-top:6px; z-index:2; }
-        .details { color:#204d69; font-weight:600; }
-        .pager { display:flex; gap:12px; align-items:center; justify-content:center; margin:18px 0 6px; }
-        .pbtn { border:2px solid #204d69; color:#204d69; padding:6px 12px; border-radius:8px; font-weight:700; }
-        .pmeta { color:#333; font-weight:600; }
-        .empty { color:#333; font-size:15px; padding:8px 2px; }
-        @media (max-width:900px){ .wrap{ margin-left:64px; padding:14px 16px 110px; } }
+        .wrap { padding: 24px 16px; max-width: 1200px; margin: 0 auto; }
+        .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+        .input { flex: 1 1 260px; padding: 8px 10px; border: 1px solid #d0c6b9; border-radius: 8px; }
+        .select, .num { padding: 8px 10px; border: 1px solid #d0c6b9; border-radius: 8px; }
+        .check { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+        .btn { cursor: pointer; padding: 8px 12px; border-radius: 10px; border: 1px solid #d0c6b9; background: #e7c36a; }
+        .btn.ghost { background: #fff; }
+        .meta { text-align: right; color: #6b6259; font-size: 12px; margin-bottom: 8px; }
+
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+        @media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 800px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+
+        .card { background: #f6efe6; border: 1px solid #e3d9cc; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+        .thumbLink { display: block; cursor: pointer; }
+        .thumb { width: 100%; aspect-ratio: 1 / 1; background: #fff; border-radius: 10px; border: 1px solid #eadfce; display: grid; place-items: center; overflow: hidden; }
+        .thumb img { width: 92%; height: 92%; object-fit: contain; }
+        .title { font-size: 14px; font-weight: 600; line-height: 1.25; margin: 0; }
+        .title :global(a) { color: #1b1b1b; text-decoration: none; }
+        .title :global(a:hover) { text-decoration: underline; }
+        .price { font-size: 14px; color: #1b1b1b; }
+        .row { display: flex; gap: 8px; }
       `}</style>
     </>
   )
 }
 
-export async function getServerSideProps(ctx: any) {
-  const { req, query } = ctx
-  const host = req?.headers?.host || 'localhost:3000'
-  const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
+export const getServerSideProps: GetServerSideProps<PageProps> = async ({ query, req }) => {
+  const base = process. PAYPAL_CLIENT_SECRET_REDACTED|| `http://${req.headers.host}`
+  const params = new URLSearchParams()
+  params.set('type', 'MINIFIG')
+  if (query.q) params.set('q', String(query.q))
+  if (query.cond) params.set('cond', String(query.cond))
+  if (query.onlyInStock) params.set('onlyInStock', String(query.onlyInStock))
+  if (query.minPrice) params.set('minPrice', String(query.minPrice))
+  if (query.maxPrice) params.set('maxPrice', String(query.maxPrice))
+  if (query.sort) params.set('sort', String(query.sort))
+  params.set('page', String(query.page || '1'))
+  params.set('limit', String(query.limit || '36'))
 
-  const page = Math.max(1, Number(query.page ?? 1))
-  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 36)))
-  const q = typeof query.q === 'string' ? query.q : ''
-  const cond = typeof query.cond === 'string' ? query.cond : ''
-  const minPrice = typeof query.minPrice === 'string' ? query.minPrice : ''
-  const maxPrice = typeof query.maxPrice === 'string' ? query.maxPrice : ''
-  const sort = typeof query.sort === 'string' ? query.sort : 'name_asc'
+  const res = await fetch(`${base}/api/products?${params.toString()}`)
+  const data = await res.json()
 
-  const p = new URLSearchParams()
-  p.set('type', 'MINIFIG')
-  p.set('page', String(page))
-  p.set('limit', String(limit))
-  if (q) p.set('q', q)
-  if (cond) p.set('cond', cond)
-  if (minPrice) p.set('minPrice', minPrice)
-  if (maxPrice) p.set('maxPrice', maxPrice)
-  if (sort) p.set('sort', sort)
-
-  let items: Item[] = []
-  let count = 0
-  const res = await fetch(`${proto}://${host}/api/products?${p.toString()}`)
-  if (res.ok) {
-    const data = await res.json()
-    const arr =
-      (Array.isArray(data.inventory) && data.inventory) ||
-      (Array.isArray(data.items) && data.items) ||
-      (Array.isArray(data.results) && data.results) || []
-    items = arr
-    count = Number(data.count ?? arr.length ?? 0)
+  return {
+    props: {
+      items: data.items || [],
+      count: data.count || 0,
+      page: Number(query.page || 1),
+      limit: Number(query.limit || 36),
+      q: String(query.q || ''),
+      cond: String(query.cond || ''),
+      onlyInStock: query.onlyInStock === '1' || query.onlyInStock === 'true',
+      sort: (query.sort ? String(query.sort) : 'name_asc'),
+      minPrice: query.minPrice ? Number(query.minPrice) : null,
+      maxPrice: query.maxPrice ? Number(query.maxPrice) : null,
+    },
   }
-
-  return { props: { items, count, page, limit, q, cond, minPrice, maxPrice, sort } }
 }
