@@ -1,170 +1,240 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import dbConnect from '@/lib/dbConnect'
 import mongoose from 'mongoose'
-import { sendOrderEmail } from '@/lib/mailer'
+import fetch from 'node-fetch'
 
-type PayPalCapture = any
+// ----- DB -----
+const MONGODB_URI = process.env.MONGODB_URI as string
+if (!MONGODB_URI) throw new Error('MONGODB_URI missing')
 
-function ppBase() {
-  const env = (process.env.PAYPAL_ENV || 'live').toLowerCase()
-  return env === 'live'
-    ? 'https://api.paypal.com'
-    : 'https://api.sandbox.paypal.com'
+const ProductSchema = new mongoose.Schema(
+  {
+    inventoryId: { type: Number, index: true },
+    itemNo: String,
+    name: String,
+    price: Number,
+    qty: Number,
+    imageUrl: String,
+    type: String,
+  },
+  { strict: false, collection: 'products' }
+)
+
+const OrderSchema = new mongoose.Schema(
+  {
+    provider: { type: String, default: 'paypal' },
+    orderId: { type: String, index: true },
+    captureIds: [String],
+    payer: {
+      email: String,
+      name: String,
+      payerId: String,
+    },
+    amount: {
+      currency: String,
+      value: Number,
+    },
+    items: [
+      {
+        inventoryId: Number,
+        id: String,
+        name: String,
+        qty: Number,
+        price: Number,
+      },
+    ],
+    shipping: {
+      name: String,
+      address: Object,
+    },
+    raw: Object,
+    createdAt: { type: Date, default: Date.now },
+  },
+  { collection: 'orders' }
+)
+
+const Product =
+  (mongoose.models.Product as mongoose.Model<any>) ||
+  mongoose.model('Product', ProductSchema)
+const Order =
+  (mongoose.models.Order as mongoose.Model<any>) ||
+  mongoose.model('Order', OrderSchema)
+
+async function db() {
+  if (mongoose.connection.readyState !== 1) {
+    await mongoose.connect(MONGODB_URI)
+  }
 }
 
-async function getAccessToken() {
-  const id = process.env.PAYPAL_CLIENT_ID!
-  const secret = process.env.PAYPAL_CLIENT_SECRET!
-  const res = await fetch(`${ppBase()}/v1/oauth2/token`, {
+// ----- Email (optional, fire-and-forget) -----
+async function sendEmailSummary(order: any) {
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
+  const from = process.env.SALES_EMAIL_FROM || user
+  const to = process.env.SALES_EMAIL_TO || user
+  if (!host || !user || !pass || !from || !to) return
+
+  const nodemailer = (await import('nodemailer')).default
+  const transporter = nodemailer.createTransport({
+    host,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: Number(process.env.SMTP_PORT || 587) === 465,
+    auth: { user, pass },
+  })
+
+  const lines = [
+    `Order: ${order.orderId}`,
+    `Capture(s): ${order.captureIds.join(', ')}`,
+    `Payer: ${order.payer.name} <${order.payer.email}>`,
+    `Amount: ${order.amount.currency} ${order.amount.value.toFixed(2)}`,
+    '',
+    'Items:',
+    ...order.items.map(
+      (it: any) => `  - ${it.name}  x${it.qty}  @ ${order.amount.currency} ${Number(it.price).toFixed(2)}`
+    ),
+  ].join('\n')
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject: `New order ${order.orderId}`,
+    text: lines,
+  })
+}
+
+// ----- PayPal helpers -----
+const PP_ENV = (process.env.PAYPAL_ENV || 'live').toLowerCase()
+const PP_CLIENT = process.env.PAYPAL_CLIENT_ID || ''
+const PP_SECRET = process. PAYPAL_CLIENT_SECRET_REDACTED|| ''
+const PP_BASE =
+  PP_ENV === 'sandbox'
+    ? 'https://api-m.sandbox.paypal.com'
+    : 'https://api-m.paypal.com'
+
+async function paypalToken() {
+  const auth = Buffer.from(`${PP_CLIENT}:${PP_SECRET}`).toString('base64')
+  const r = await fetch(`${PP_BASE}/v1/oauth2/token`, {
     method: 'POST',
     headers: {
+      Authorization: `Basic ${auth}`,
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64'),
     },
     body: 'grant_type=client_credentials',
   })
-  if (!res.ok) throw new Error(`paypal_token_failed ${res.status}`)
-  const json = await res.json()
-  return json.access_token as string
+  if (!r.ok) throw new Error(`paypal_token_failed ${r.status}`)
+  const j = (await r.json()) as any
+  return j.access_token as string
 }
 
-async function captureOrder(orderId: string, accessToken: string) {
-  const res = await fetch(`${ppBase()}/v2/checkout/orders/${orderId}/capture`, {
+async function captureOrder(orderId: string) {
+  const token = await paypalToken()
+  const r = await fetch(`${PP_BASE}/v2/checkout/orders/${orderId}/capture`, {
     method: 'POST',
     headers: {
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'PayPal-Request-Id': `cap_${orderId}_${Date.now()}`,
+      'PayPal-Request-Id': `cap-${orderId}`, // idempotency
     },
     body: JSON.stringify({}),
   })
-  const json = await res.json()
-  if (!res.ok) {
-    const err = new Error('paypal_capture_failed') as any
-    err.details = json
-    throw err
+  const body = await r.json()
+  if (!r.ok) {
+    const code = (body && body.name) || r.status
+    throw new Error(`paypal_capture_failed ${code}`)
   }
-  return json as PayPalCapture
+  return body
+}
+
+// Extract a simple order shape we can store & email
+function normalizeCapture(capture: any) {
+  const purchase = (capture.purchase_units && capture.purchase_units[0]) || {}
+  const payments = purchase.payments || {}
+  const captures = payments.captures || []
+  const captureIds: string[] = captures.map((c: any) => c.id)
+
+  const amount = captures[0]?.amount || purchase.amount || {}
+  const payer = {
+    email: capture.payer?.email_address || '',
+    name:
+      capture.payer?.name?.given_name || capture.payer?.name?.surname
+        ? `${capture.payer?.name?.given_name || ''} ${capture.payer?.name?.surname || ''}`.trim()
+        : '',
+    payerId: capture.payer?.payer_id || '',
+  }
+
+  // If you included items when creating the order, PayPal echoes them here
+  // (and we also try to read our own metadata fields if present)
+  const items = (purchase.items || []).map((it: any) => ({
+    inventoryId:
+      typeof it.custom_id === 'string' && /^\d+$/.test(it.custom_id)
+        ? Number(it.custom_id)
+        : undefined,
+    id: it.sku || it.custom_id || it.name,
+    name: it.name,
+    qty: Number(it.quantity || 1),
+    price: Number(it.unit_amount?.value || it.price || 0),
+  }))
+
+  const shipping = {
+    name: purchase.shipping?.name?.full_name || '',
+    address: purchase.shipping?.address || null,
+  }
+
+  return {
+    orderId: capture.id,
+    captureIds,
+    payer,
+    amount: {
+      currency: amount.currency_code || 'AUD',
+      value: Number(amount.value || 0),
+    },
+    items,
+    shipping,
+    raw: capture,
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return res.status(405).json({ error: 'method_not_allowed' })
-  }
-
-  const testMode = String(process. PAYPAL_CLIENT_SECRET_REDACTED|| '').trim()
-  const isTest = testMode === '1' || /^true$/i.test(testMode)
-
   try {
-    await dbConnect(process.env.MONGODB_URI!)
-  } catch {
-    // still try to proceed; email will still be sent even if DB fails
-  }
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
+    const { orderId } = (req.body || {}) as { orderId?: string }
+    if (!orderId) return res.status(400).json({ error: 'missing_orderId' })
 
-  try {
-    const orderId =
-      (req.query.orderId as string) ||
-      (typeof req.body?.orderId === 'string' ? req.body.orderId : '')
+    await db()
 
-    if (!orderId) return res.status(422).json({ error: 'missing_orderId' })
+    // 1) Capture on PayPal
+    const cap = await captureOrder(orderId)
 
-    // TEST MODE: do not hit PayPal; pretend we captured successfully
-    let captured: any
-    if (isTest) {
-      captured = {
-        id: orderId,
-        status: 'COMPLETED',
-        testMode: true,
-        purchase_units: req.body?.purchase_units || [],
+    // 2) Normalize + save
+    const order = normalizeCapture(cap)
+    // idempotent: upsert by orderId
+    const saved = await Order.findOneAndUpdate(
+      { orderId: order.orderId },
+      order,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).lean()
+
+    // 3) Decrement stock if we have inventoryId for any line
+    for (const it of order.items) {
+      if (it.inventoryId) {
+        await Product.updateOne(
+          { inventoryId: it.inventoryId },
+          { $inc: { qty: -Number(it.qty || 1) } }
+        )
       }
-    } else {
-      const token = await getAccessToken()
-      captured = await captureOrder(orderId, token)
     }
 
-    // Extract capture + totals
-    const pu = (captured?.purchase_units && captured.purchase_units[0]) || {}
-    const cap =
-      (pu?.payments?.captures && pu.payments.captures[0]) ||
-      (pu?.payments?.authorizations && pu.payments.authorizations[0]) ||
-      {}
-    const captureId = cap?.id || ''
-    const amount = cap?.amount || pu?.amount || {}
-    const currency = amount.currency_code || process. PAYPAL_CLIENT_SECRET_REDACTED|| 'AUD'
-    const grand = parseFloat(amount.value || '0')
+    // 4) Fire-and-forget email (don’t block response)
+    sendEmailSummary(order).catch(() => {})
 
-    // Derive items (if your order endpoint stored items in body on capture call, include that too)
-    const items =
-      (pu?.items as Array<any>) ||
-      (Array.isArray(req.body?.items) ? req.body.items : [])
-
-    // Persist to DB (generic collection to avoid schema mismatch)
-    let savedId: string | null = null
-    try {
-      const doc = {
-        orderId,
-        captureId,
-        status: captured?.status || 'COMPLETED',
-        payer: {
-          email: captured?.payer?.email_address,
-          name:
-            captured?.payer?.name?.given_name || captured?.payer?.name?.surname
-              ? `${captured?.payer?.name?.given_name ?? ''} ${captured?.payer?.name?.surname ?? ''}`.trim()
-              : undefined,
-        },
-        items: items?.map((it: any) => ({
-          name: it.name,
-          qty: Number(it.quantity || it.qty || 1),
-          price: Number(it.unit_amount?.value || it.price || 0),
-        })),
-        totals: { currency, grand, items: 0, postage: 0 },
-        raw: captured,
-        createdAt: new Date(),
-      }
-      doc.totals.items =
-        (doc.items || []).reduce((s: number, it: any) => s + (it.price || 0) * (it.qty || 1), 0) || 0
-
-      const cx = (mongoose.connection as any).db
-      if (cx) {
-        const r = await cx.collection('orders').insertOne(doc)
-        savedId = String(r.insertedId)
-      }
-    } catch {
-      // non-fatal
-    }
-
-    // Fire-and-forget email (don’t block success if SMTP fails)
-    try {
-      await sendOrderEmail({
-        _id: savedId || undefined,
-        orderId,
-        captureId,
-        payer: { email: captured?.payer?.email_address },
-        totals: { currency, grand },
-        items: Array.isArray(items)
-          ? items.map((it: any) => ({
-              name: it.name,
-              qty: Number(it.quantity || it.qty || 1),
-              price: Number(it.unit_amount?.value || it.price || 0),
-            }))
-          : undefined,
-      })
-    } catch {
-      // ignore email errors
-    }
-
-    // If your UI expects a redirect, keep your existing return handler doing that.
-    // Here we just return JSON.
     return res.status(200).json({
       ok: true,
-      orderId,
-      captureId,
-      status: captured?.status || 'COMPLETED',
-      totals: { currency, grand },
-      savedId,
-      testMode: isTest,
+      provider: 'paypal',
+      orderId: order.orderId,
+      captureIds: order.captureIds,
+      saved: true,
     })
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'capture_failed', details: err?.details })
+    return res.status(500).json({ error: 'capture_failed', message: String(err?.message || err) })
   }
 }
