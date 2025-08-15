@@ -1,21 +1,20 @@
-// src/pages/_app.tsx
 import type { AppProps } from "next/app";
+import Head from "next/head";
 import { AnalyticsTags } from "@/lib/analytics";
-
-// pick the import that exists in YOUR repo:
-import { CartProvider } from "@/context/cart";     // ← try this first
-// import { CartProvider } from "@/lib/cart";      // ← or this
-// import { CartProvider } from "@/providers/cart"; // ← or this
-
-import "@/styles/globals.css";
+// Either path works; pick one you actually have:
+import { CartProvider } from "@/components/CartContext";
+// import { CartProvider } from "@/context/CartContext";
 
 export default function MyApp({ Component, pageProps }: AppProps) {
   return (
     <>
-      <AnalyticsTags />
+      <Head>
+        {/* Keep your existing meta/links here */}
+      </Head>
       <CartProvider>
         <Component {...pageProps} />
       </CartProvider>
+      <AnalyticsTags />
     </>
   );
 }
