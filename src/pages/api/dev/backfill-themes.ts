@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import dbConnect from '../../../lib/db'
 import Product from '../../../models/Product'
-import { sniffTheme } from '../../../lib/theme-map'
+import { sniffTheme } from '@/lib/theme-map'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' })

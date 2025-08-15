@@ -1,14 +1,19 @@
-import type { AppProps } from 'next/app'
-import SiteLayout from '@/components/SiteLayout'
-import { CartProvider } from '@/components/CartContext'
-import '@/styles/globals.css'
+// pages/_app.tsx
+import type { AppProps } from "next/app";
+import Script from "next/script";
 
-export default function App({ Component, pageProps }: AppProps) {
+export default function MyApp({ Component, pageProps }: AppProps) {
+  const domain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
   return (
-    <CartProvider>
-      <SiteLayout>
-        <Component {...pageProps} />
-      </SiteLayout>
-    </CartProvider>
-  )
+    <>
+      {domain && (
+        <Script
+          defer
+          data-domain={domain}
+          src="https://plausible.io/js/script.js"
+        />
+      )}
+      <Component {...pageProps} />
+    </>
+  );
 }
