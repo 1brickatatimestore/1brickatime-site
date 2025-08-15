@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "backup": "bash scripts/backup.sh"
+    "backup": "bash scripts/backup-secrets.sh",
+    "restore": "bash scripts/restore-secrets.sh"
   },
   "dependencies": {
     "axios": "^1.11.0",
