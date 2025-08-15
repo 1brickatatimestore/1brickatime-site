@@ -1,119 +1,77 @@
-export type ThemeKey =
-  | 'city'
-  | 'star-wars'
-  | 'ninjago'
-  | 'harry-potter'
-  | 'jurassic-world'
-  | 'the-lego-movie'
-  | 'speed-champions'
-  | 'space'
-  | 'pirates'
-  | 'pirates-of-the-caribbean'
-  | 'indiana-jones'
-  | 'ghostbusters'
-  | 'minions'
-  | 'the-simpsons'
-  | 'spongebob'
-  | 'trains'
-  | 'atlantis'
-  | 'monster-fighters'
-  | 'vidiyo'
-  | 'adventurers'
-  | 'hidden-side'
-  | 'nexo-knights'
-  | 'legends-of-chima'
-  | 'toy-story'
-  | 'ultra-agents'
-  | 'racers'
-  | 'ideas'
-  | 'collectible-minifigures'
-  | 'other'
+// src/lib/theme-map.ts
 
-export const THEME_LABELS: Record<ThemeKey, string> = {
-  city: 'City',
-  'star-wars': 'Star Wars',
-  ninjago: 'Ninjago',
-  'harry-potter': 'Harry Potter',
-  'jurassic-world': 'Jurassic World',
-  'the-lego-movie': 'The LEGO Movie',
-  'speed-champions': 'Speed Champions',
-  space: 'Space',
-  pirates: 'Pirates',
-  'pirates-of-the-caribbean': 'Pirates of the Caribbean',
-  'indiana-jones': 'Indiana Jones',
-  ghostbusters: 'Ghostbusters',
-  minions: 'Minions',
-  'the-simpsons': 'The Simpsons',
-  spongebob: 'SpongeBob SquarePants',
-  trains: 'Trains',
-  atlantis: 'Atlantis',
-  'monster-fighters': 'Monster Fighters',
-  vidiyo: 'VIDIYO',
-  adventurers: 'Adventurers',
-  'hidden-side': 'Hidden Side',
-  'nexo-knights': 'Nexo Knights',
-  'legends-of-chima': 'Legends of Chima',
-  'toy-story': 'Toy Story',
-  'ultra-agents': 'Ultra Agents',
-  racers: 'Racers',
-  ideas: 'Ideas',
-  'collectible-minifigures': 'Collectible Minifigures',
-  other: 'Other (Singles)',
+// Map BrickLink-ish names/aliases to a canonical theme slug
+export const THEME_MAP: Record<string, string> = {
+  // Canonical        // Aliases (lowercased, punctuation-insensitive)
+  "star-wars":        "star wars,sw,starwars",
+  "harry-potter":     "harry potter,hp",
+  "city":             "city,town",
+  "technic":          "technic,tech",
+  "friends":          "friends",
+  "ninjago":          "ninjago",
+  "creator":          "creator,3in1,3-in-1",
+  "creator-expert":   "creator expert,expert,icons", // legacy->icons
+  "marvel":           "marvel,avengers,super heroes,super-heroes",
+  "dc":               "dc,batman,super heroes dc,super-heroes dc",
+  "jurassic-world":   "jurassic world,jurassic",
+  "minecraft":        "minecraft,mc",
+  "disney":           "disney",
+  "ideas":            "ideas,cuusoo",
+  "speed-champions":  "speed champions,speed",
+  "lord-of-the-rings":"lotr,lord of the rings",
+  "architecture":     "architecture,arch",
+  "classic":          "classic,bricks and eyes",
+  "duplo":            "duplo",
+  "monkie-kid":       "monkie kid,monkiekid,mk",
+  "icon":             "icons", // keep new branding reachable
+};
+
+// Build a quick lookup from aliases → canonical
+const ALIAS_LOOKUP: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  for (const [canonical, aliases] of Object.entries(THEME_MAP)) {
+    for (const raw of aliases.split(",")) {
+      const k = normalize(raw);
+      if (!map[k]) map[k] = canonical;
+    }
+    // also map the canonical name to itself
+    map[normalize(canonical)] = canonical;
+  }
+  return map;
+})();
+
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
-export function isCollectiblePrefix(p: string) {
-  return p.startsWith('col') || p === 'cmf'
-}
+/**
+ * Best-effort theme detector.
+ * Accepts a raw theme name from data, returns a canonical slug present in THEME_MAP,
+ * or `null` if we couldn’t confidently map it.
+ */
+export function sniffTheme(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const norm = normalize(raw);
 
-const CITYish = new Set(['twn', 'gen', 'air', 'cop'])
+  // direct alias/canonical hit
+  if (ALIAS_LOOKUP[norm]) return ALIAS_LOOKUP[norm];
 
-const PREFIX_MAP: Record<string, ThemeKey> = {
-  // big ones
-  sw: 'star-wars',
-  hp: 'harry-potter',
-  njo: 'ninjago',
-  jw: 'jurassic-world',
-  tlm: 'the-lego-movie',
-  sc: 'speed-champions',
-  sp: 'space',
+  // relaxed contains-based guesses
+  for (const [needle, canonical] of [
+    ["star wars", "star-wars"],
+    ["harry potter", "harry-potter"],
+    ["creator expert", "creator-expert"],
+    ["speed champions", "speed-champions"],
+    ["jurassic", "jurassic-world"],
+    ["lord of the rings", "lord-of-the-rings"],
+  ]) {
+    if (norm.includes(needle)) return canonical;
+  }
 
-  // City family
-  twn: 'city',
-  gen: 'city',
-  air: 'city',
-  cop: 'city',
+  // last-resort: single word exacts
+  for (const canonical of Object.keys(THEME_MAP)) {
+    if (norm === normalize(canonical)) return canonical;
+  }
 
-  // other themes
-  pi: 'pirates',
-  poc: 'pirates-of-the-caribbean',
-  iaj: 'indiana-jones',
-  gs: 'ghostbusters',
-  min: 'minions',
-  sim: 'the-simpsons',
-  trn: 'trains',
-  atl: 'atlantis',
-  mof: 'monster-fighters',
-  vid: 'vidiyo',
-  adp: 'adventurers',
-  hs: 'hidden-side',
-  nex: 'nexo-knights',
-  loc: 'legends-of-chima',
-  bob: 'spongebob',     // SpongeBob stays separate
-  toy: 'toy-story',
-  uagt: 'ultra-agents',
-  rac: 'racers',
-  idea: 'ideas',
-}
-
-export function extractPrefix(itemNo?: string) {
-  if (!itemNo) return ''
-  const m = itemNo.toLowerCase().match(/^[a-z]+/)
-  return m ? m[0] : ''
-}
-
-export function mapThemeKey(prefix: string): ThemeKey {
-  if (!prefix) return 'other'
-  if (isCollectiblePrefix(prefix)) return 'collectible-minifigures'
-  if (CITYish.has(prefix)) return 'city'
-  return PREFIX_MAP[prefix] ?? 'other'
+  return null;
 }
