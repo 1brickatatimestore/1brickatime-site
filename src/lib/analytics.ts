@@ -1,73 +1,49 @@
 // src/lib/analytics.ts
+import React from "react";
 import Script from "next/script";
-import { useEffect } from "react";
-import { useRouter } from "next/router";
 
-// Choose analytics by env vars
-const GA_ID = process. PAYPAL_CLIENT_SECRET_REDACTED|| "";
-const PLAUSIBLE_DOMAIN = process. PAYPAL_CLIENT_SECRET_REDACTED|| "";
+const PLAUSIBLE_DOMAIN = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN; // e.g. 1brickatatimestore.com
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID; // e.g. G-XXXXXXX
 
-declare global {
-  interface Window {
-    dataLayer: any[];
-    gtag: (...args: any[]) => void;
-    plausible?: (event: string, opts?: Record<string, any>) => void;
-  }
-}
-
+/**
+ * Drop-in analytics tags. Only loads what you’ve configured via env vars.
+ *
+ * Use in pages/_app.tsx:
+ *   import { AnalyticsTags } from "@/lib/analytics";
+ *   ...
+ *   <AnalyticsTags />
+ */
 export function AnalyticsTags() {
-  // GA4 tags
-  if (GA_ID) {
-    return (
-      <>
+  return (
+    <>
+      {/* Plausible */}
+      {PLAUSIBLE_DOMAIN && (
         <Script
-          id="ga4-src"
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-          strategy="afterInteractive"
+          id="plausible-script"
+          defer
+          data-domain={PLAUSIBLE_DOMAIN}
+          src="https://plausible.io/js/script.js"
         />
-        <Script id="ga4-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            window.gtag = gtag;
-            gtag('js', new Date());
-            gtag('config', '${GA_ID}', { anonymize_ip: true });
-          `}
-        </Script>
-      </>
-    );
-  }
+      )}
 
-  // Plausible tag
-  if (PLAUSIBLE_DOMAIN) {
-    return (
-      <Script
-        id="plausible"
-        strategy="afterInteractive"
-        defer
-        data-domain={PLAUSIBLE_DOMAIN}
-        src="https://plausible.io/js/script.js"
-      />
-    );
-  }
-
-  return null;
-}
-
-// SPA pageview tracking for both
-export function usePageviewTracking() {
-  const router = useRouter();
-
-  useEffect(() => {
-    const onRouteChange = (url: string) => {
-      if (GA_ID && typeof window.gtag === "function") {
-        window.gtag("config", GA_ID, { page_path: url });
-      }
-      if (PLAUSIBLE_DOMAIN && typeof window.plausible === "function") {
-        window.plausible("pageview", { u: url });
-      }
-    };
-    router.events.on("routeChangeComplete", onRouteChange);
-    return () => router.events.off("routeChangeComplete", onRouteChange);
-  }, [router.events]);
+      {/* Google Analytics 4 (optional) */}
+      {GA_ID && (
+        <>
+          <Script
+            id="ga4-loader"
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+          />
+          <Script id="ga4-inline" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_ID}', { anonymize_ip: true });
+            `}
+          </Script>
+        </>
+      )}
+    </>
+  );
 }
