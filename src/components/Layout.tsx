@@ -1,140 +1,142 @@
-import Head from 'next/head'
-import Image from 'next/image'
+// src/components/Layout.tsx
+import React, { PropsWithChildren } from 'react'
 import Link from 'next/link'
 
-export default function HomePage() {
+export default function Layout({ children }: PropsWithChildren<{}>) {
+  // Decorative “studs” row colors (repeat to taste)
+  const studs = [
+    '#d7ccc8', '#a1887f', '#ffffff', '#c8e6c9', '#ffecb3', '#ffe0b2', '#bbdefb', '#f8bbd0',
+    '#d7ccc8', '#a1887f', '#ffffff', '#c8e6c9', '#ffecb3', '#ffe0b2', '#bbdefb', '#f8bbd0',
+  ]
+
   return (
     <>
-      <Head>
-        <title>1 Brick at a Time — Home</title>
-      </Head>
+      <a href="#content" className="skip">Skip to content</a>
 
-      <main className="home">
-        {/* HERO */}
-        <section className="hero">
-          <div className="logoWrap">
-            <Image
-              src="/logo.png"
-              alt="1 Brick at a Time — logo"
-              width={220}
-              height={220}
-              priority
-            />
-          </div>
+      <header id="site-header" className="siteHeader">
+        <div className="wrap">
+          <Link href="/" className="brand">1 Brick at a Time</Link>
 
-          <div className="copy">
-            <h1>
-              1 Brick at a <em>time.</em>
-            </h1>
+          <nav className="nav" aria-label="Primary">
+            <Link href="/">Home</Link>
+            <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
+            <Link href="/minifigs-by-theme?limit=36">By Theme</Link>
+            <Link href="/cart">Cart</Link>
+          </nav>
+        </div>
 
-            <p className="sub">
-              Owned by K &amp; K Enterprises — Director: Kamila McT. Building
-              connections — human and LEGO ones — since 2023.
-            </p>
+        {/* stud bar */}
+        <div className="studBar" aria-hidden="true">
+          {studs.map((c, i) => (
+            <span key={i} className="stud" style={{ background: c }} />
+          ))}
+        </div>
+      </header>
 
-            <div className="ctaRow">
-              <Link href="/minifigs?type=MINIFIG&limit=36" legacyBehavior>
-                <a className="btnPrimary">Shop Now</a>
-              </Link>
-              <Link href="/minifigs?limit=36" legacyBehavior>
-                <a className="btnGhost">See All Items</a>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* HANDWRITTEN NOTE */}
-        <section className="note">
-          <h2 className="gday">G’day,</h2>
-          <p className="hand">
-            we strive for 100% customer satisfaction, so please let us know if
-            there’s anything else we can do for you.
-          </p>
-        </section>
+      <main id="content" className="siteMain">
+        {children}
       </main>
 
+      <footer className="siteFooter">
+        © {new Date().getFullYear()} 1 Brick at a Time
+      </footer>
+
       <style jsx>{`
-        .home {
-          max-width: 980px;
-          margin: 0 auto;
-          padding: 24px;
+        /* accessibility */
+        .skip {
+          position: absolute;
+          left: -9999px;
+          top: auto;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
         }
-        .hero {
-          display: grid;
-          grid-template-columns: 260px 1fr;
-          gap: 24px;
-          align-items: center;
-          margin-top: 8px;
-        }
-        .logoWrap {
-          width: 260px;
-          height: 260px;
-          display: grid;
-          place-items: center;
-          background: rgba(255, 255, 255, 0.09);
-          border-radius: 14px;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-        }
-        h1 {
-          margin: 0 0 8px;
-          font-size: 48px;
-          line-height: 1.1;
-          font-weight: 800;
-          color: #2b2b2b;
-        }
-        h1 em {
-          color: #b5463b;
-          font-style: normal;
-          font-family: 'Satisfy', cursive; /* handwriting accent */
-        }
-        .sub {
-          margin: 0 0 14px;
-          max-width: 640px;
-          color: #2f2f2f;
-          font-size: 15px;
-        }
-        .ctaRow { display: flex; gap: 12px; }
-        .btnPrimary {
-          background: #e1b946;
-          border: 2px solid #a2801a;
-          padding: 10px 16px;
-          border-radius: 8px;
-          font-weight: 700;
-          color: #1a1a1a;
-        }
-        .btnGhost {
-          background: transparent;
+        .skip:focus {
+          position: fixed;
+          left: 16px;
+          top: 12px;
+          width: auto;
+          height: auto;
+          padding: 8px 12px;
+          background: #fff;
           border: 2px solid #204d69;
-          padding: 10px 16px;
           border-radius: 8px;
+          z-index: 100;
+        }
+
+        /* header */
+        .siteHeader {
+          position: sticky;
+          top: 0;
+          z-index: 50;
+          background: #f7f2eb;
+          border-bottom: 1px solid #e7dccb;
+        }
+        .wrap {
+          max-width: 1080px;
+          margin: 0 auto;
+          padding: 12px 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .brand {
+          font-weight: 800;
+          color: #1a1a1a;
+          text-decoration: none;
+        }
+        .nav {
+          display: flex;
+          gap: 16px;
+        }
+        .nav :global(a) {
           color: #204d69;
+          text-decoration: none;
           font-weight: 600;
         }
 
-        .note { margin-top: 36px; }
-        .gday {
-          margin: 0 0 8px;
-          font-size: 64px;
-          line-height: 1;
-          color: #b5463b;
-          font-family: 'Satisfy', cursive;  /* handwriting */
-          font-weight: 400;
+        /* stud bar */
+        .studBar {
+          display: flex;
+          gap: 6px;
+          padding: 8px 16px;
+          justify-content: center;
+          background: #f3ece1;
+          border-top: 1px solid #e7dccb;
         }
-        .hand {
-          margin: 0;
-          max-width: 900px;
-          font-size: 28px;
-          line-height: 1.35;
-          font-family: 'Satisfy', cursive;  /* handwriting */
-          color: #1f1f1f;
+        .stud {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          border: 1px solid rgba(0,0,0,0.06);
+          box-shadow:
+            inset -2px -3px 0 rgba(0,0,0,0.12),
+            0 1px 0 rgba(255,255,255,0.8);
+          flex: 0 0 16px;
+        }
+
+        /* main */
+        .siteMain {
+          max-width: 1080px;
+          margin: 0 auto;
+          padding: 24px 16px;
+          min-height: 60vh;
+        }
+
+        /* footer */
+        .siteFooter {
+          max-width: 1080px;
+          margin: 40px auto 24px;
+          padding: 0 16px;
+          color: #777;
+          text-align: center;
+          border-top: 1px solid #eee;
         }
 
         @media (max-width: 920px) {
-          .hero { grid-template-columns: 1fr; }
-          .logoWrap { width: 200px; height: 200px; margin: 0 auto; }
-          h1 { font-size: 40px; }
-          .gday { font-size: 52px; }
-          .hand { font-size: 24px; }
+          .wrap { padding: 10px 12px; }
+          .nav { gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
         }
       `}</style>
     </>

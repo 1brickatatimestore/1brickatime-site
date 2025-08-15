@@ -1,35 +1,22 @@
-import Document, { Html, Head, Main, NextScript } from "next/document";
+// src/pages/_document.tsx
+import Document, { Html, Head, Main, NextScript } from 'next/document'
 
-export default class MyDocument extends Document {
+class MyDocument extends Document {
   render() {
-    const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
     return (
       <Html lang="en">
         <Head>
-          {GA_ID ? (
-            <>
-              <script
-                async
-                src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-              />
-              <script
-                dangerouslySetInnerHTML={{
-                  __html: `
-                    window.dataLayer = window.dataLayer || [];
-                    function gtag(){dataLayer.push(arguments);}
-                    gtag('js', new Date());
-                    gtag('config', '${GA_ID}', { send_page_view: true });
-                  `,
-                }}
-              />
-            </>
-          ) : null}
+          <meta name="theme-color" content="#ffffff" />
+          <link rel="icon" href="/favicon.ico" />
+          {/* put fonts or analytics meta here if you use them */}
         </Head>
         <body>
           <Main />
           <NextScript />
         </body>
       </Html>
-    );
+    )
   }
 }
+
+export default MyDocument
