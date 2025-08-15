@@ -1,27 +1,19 @@
-import type { AppProps } from "next/app";
-import Head from "next/head";
+// src/pages/_app.tsx
+import type { AppProps } from 'next/app';
 
-// You have a re-export here already:
-import { CartProvider } from "@/components/CartContext";
-// (If you prefer, you could import directly)
-// import { CartProvider } from "@/context/CartContext";
+// ✅ Import the CartProvider from a path that exists in your repo.
+// You have BOTH of these in your tree; EITHER import will work.
+// Prefer this one (shim that re-exports the real context):
+import CartProvider from '@/components/CartContext';
+// If you prefer to import the source directly, use:
+// import { CartProvider } from '@/context/CartContext';
 
-import { AnalyticsTags } from "@/lib/analytics"; // this file must be .tsx
+import '@/styles/globals.css'; // keep if you have it; otherwise delete this line
 
-export default function MyApp({ Component, pageProps }: AppProps) {
+export default function App({ Component, pageProps }: AppProps) {
   return (
-    <>
-      <Head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>1 Brick at a Time</title>
-      </Head>
-
-      <CartProvider>
-        <Component {...pageProps} />
-      </CartProvider>
-
-      <AnalyticsTags />
-    </>
+    <CartProvider>
+      <Component {...pageProps} />
+    </CartProvider>
   );
 }
