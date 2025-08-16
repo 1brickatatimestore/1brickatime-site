@@ -1,49 +1,73 @@
-import mongoose, { Schema, model, models } from 'mongoose';
+// src/models/Product.ts
+import mongoose, { Schema, model, models, InferSchemaType } from 'mongoose'
 
-export type ProductType = 'MINIFIG' | 'SET' | 'PART';
+const COLLECTION = process. PAYPAL_CLIENT_SECRET_REDACTED|| 'products'
 
-export interface IProduct {
-  _id?: mongoose.Types.ObjectId;
-  inventoryId: number;             // BrickLink inventory key (unique)
-  itemNo: string;                  // e.g. "adp094"
-  type: ProductType;               // 'MINIFIG', 'SET', etc.
-  categoryId?: number;             // BrickLink category id
-  name: string;
-  price: number;
-  qty: number;
-  condition?: 'N' | 'U';           // New/Used (BrickLink style)
-  themeKey?: string;               // e.g. 'city'
-  seriesKey?: string;              // e.g. '1' for CMF
-  imageUrl?: string;
-  description?: string;
-  remarks?: string;                // your freeform note / BrickLink remarks
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
-const ProductSchema = new Schema<IProduct>(
+const ProductSchema = new Schema(
   {
-    inventoryId: { type: Number, unique: true, index: true },
     itemNo: { type: String, index: true },
+    inventoryId: { type: Number, index: true },
+
+    name: { type: String },
     type: { type: String, index: true },
-    categoryId: { type: Number },
-    name: { type: String, required: true },        // <-- no `index: true`
-    price: { type: Number, required: true },       // <-- no `index: true`
-    qty: { type: Number, default: 0, index: true },
     condition: { type: String },
+    remarks: { type: String },
+    language: { type: String },
+
     themeKey: { type: String, index: true },
     seriesKey: { type: String, index: true },
+
+    price: { type: Number },
+    qty: { type: Number, index: true },
+
     imageUrl: { type: String },
-    description: { type: String },
-    remarks: { type: String },
   },
-  { timestamps: true }
-);
+  {
+    versionKey: false,
+    timestamps: false,
+    collection: COLLECTION,
+  }
+)
 
-// Only compound/supporting indexes below (no duplicates of field-level ones)
-ProductSchema.index({ type: 1, themeKey: 1 });
-ProductSchema.index({ type: 1, seriesKey: 1 });
-ProductSchema.index({ type: 1, price: 1 });
-ProductSchema.index({ name: 'text', itemNo: 'text', remarks: 'text' }, { name: 'product_text' });
+ProductSchema.index(
+  { inventoryId: 1 },
+  {
+    name: 'inventoryId_1',
+    unique: true,
+    partialFilterExpression: { inventoryId: { $gt: 0 } },
+  }
+)
 
-export default (models.Product as mongoose.Model<IProduct>) || model<IProduct>('Product', ProductSchema);
+ProductSchema.index(
+  { itemNo: 1 },
+  {
+    name: 'itemNo_1',
+    unique: true,
+    partialFilterExpression: { itemNo: { $type: 'string' } },
+  }
+)
+
+ProductSchema.index({ type: 1, themeKey: 1 }, { name: 'type_1_themeKey_1' })
+ProductSchema.index({ type: 1, seriesKey: 1 }, { name: 'type_1_seriesKey_1' })
+ProductSchema.index({ type: 1, price: 1 }, { name: 'type_1_price_1' })
+ProductSchema.index({ type: 1 }, { name: 'type_1' })
+ProductSchema.index({ seriesKey: 1 }, { name: 'seriesKey_1' })
+ProductSchema.index({ themeKey: 1 }, { name: 'themeKey_1' })
+ProductSchema.index({ qty: 1 }, { name: 'qty_1' })
+
+ProductSchema.index(
+  { itemNo: 'text', name: 'text', remarks: 'text' },
+  {
+    name: 'product_text',
+    default_language: 'english',
+    language_override: 'language',
+    weights: { itemNo: 1, name: 1, remarks: 1 },
+  }
+)
+
+export type ProductDoc = InferSchemaType<typeof ProductSchema>
+
+const modelName = `Product_${COLLECTION}`
+
+export default (models[modelName] as mongoose.Model<ProductDoc>) ||
+  model<ProductDoc>(modelName, ProductSchema)

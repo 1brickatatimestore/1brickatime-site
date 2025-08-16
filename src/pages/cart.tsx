@@ -2,7 +2,7 @@
 import Head from 'next/head'
 import Image from 'next/image'
 import { useState } from 'react'
-import { useCart } from '@/components/CartContext'
+import { useCart } from '@/context/CartContext'
 
 const BANK_DETAILS = {
   name: 'Kamila McIntyre',

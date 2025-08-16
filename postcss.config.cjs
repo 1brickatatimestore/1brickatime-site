@@ -1,7 +1,6 @@
-/** @type {import('postcss').ProcessOptions} */
+// postcss.config.js
 module.exports = {
   plugins: {
-    '@tailwindcss/postcss': {},
     autoprefixer: {},
   },
 };

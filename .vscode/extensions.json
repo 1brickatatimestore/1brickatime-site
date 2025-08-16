@@ -1,0 +1,20 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "PulkitGangwar.nextjs-snippets",
+    "rbbit.typescript-hero",
+    "christian-kohler.path-intellisense",
+    "eamodio.gitlens",
+    "usernamehw.errorlens",
+    "vscode-icons-team.vscode-icons",
+    "wix.vscode-import-cost",
+    "formulahendry.auto-rename-tag",
+    "formulahendry.auto-close-tag",
+    "clinyong.vscode-css-modules"
+  ],
+  "unwantedRecommendations": [
+    "HookyQR.beautify"
+  ]
+}

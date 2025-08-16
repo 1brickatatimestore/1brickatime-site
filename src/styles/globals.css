@@ -3,14 +3,64 @@
 html, body, #__next { height: 100%; }
 body {
   margin: 0;
-  background: #e9e3db;          /* cream */
+  background: #e9e3db; /* cream */
   color: #1e1e1e;
   -webkit-font-smoothing: antialiased;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
 a { color: inherit; text-decoration: none; }
 
-/* ────────────────── HOME BUTTON STYLES (LOCKED) ────────────────── */
+/* A sensible wrapper */
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ────────────────── HEADER / STUD BAR / FOOTER ────────────────── */
+.siteHeader {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f7f3ee;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.siteHeaderInner {
+  max-width: 1100px; margin: 0 auto; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.siteHeader .brand {
+  display: flex; align-items: center; gap: 8px; font-weight: 800; letter-spacing: .3px;
+}
+
+/* studs bar (matches your Layout.tsx .studBar class) */
+.studBar {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 40px;
+  gap: 8px;
+  padding: 10px 16px;
+  overflow-x: auto;
+  background: #ece6de;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+.studBar .stud {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff 0%, #e8e2da 60%, #d8d1c8 100%);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.05);
+}
+
+.siteFooter {
+  margin-top: 48px;
+  background: #f3eee7;
+  border-top: 1px solid rgba(0,0,0,.06);
+}
+.siteFooterInner {
+  max-width: 1100px; margin: 0 auto; padding: 18px 16px;
+  font-size: 14px; color: #4b5563;
+}
+
+/* ────────────────── BUTTONS ────────────────── */
 .btnPrimary{
   background:#e1b946;
   border:2px solid #a2801a;
@@ -30,54 +80,77 @@ a { color: inherit; text-decoration: none; }
   display:inline-block;
 }
 
-/* ────────────────── GENERIC CARD LOOK (unchanged) ────────────────── */
+/* ────────────────── FILTER BAR (minifigs pages) ────────────────── */
+.filters{
+  display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+  background:#f7f3ee; padding:10px; border-radius:10px; margin-bottom:16px;
+  border:1px solid rgba(0,0,0,.06);
+}
+.filters .text,
+.filters .num,
+.filters .select{
+  padding:8px 10px;
+  border-radius:8px;
+  border:1px solid #d6d1c9;
+  background:#fff;
+  min-width: 140px;
+}
+.filters .meta { margin-left:auto; color:#6b7280; font-size: 14px; }
+
+/* ────────────────── GRID / CARD ────────────────── */
+.grid{
+  display:grid;
+  gap:12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
 .card{
   background:#fff;
   border-radius:12px;
   box-shadow:0 1px 4px rgba(0,0,0,.06);
   padding:12px;
+  border:1px solid rgba(0,0,0,.04);
 }
 .card .name{ font-weight:700; margin:8px 0 0; font-size:14px; }
 .card .sku{ color:#6b7280; font-size:12px; margin-top:2px; }
 .card .price{ font-weight:700; margin-top:6px; }
 
-/* ────────────────── UNIVERSAL MINIFIG IMAGE CONTAINMENT ────────────────── */
-/* This fixes cropped heads/chests on the “Minifigs by Theme” page without
-   relying on that page’s specific class names. It also keeps the normal
-   Minifigs grid looking correct. */
-
-/* 1) Ensure the first visual box in each card behaves like a square frame */
+/* ────────────────── IMAGE CONTAINMENT ────────────────── */
+/* ensure minifigs aren’t cropped anywhere */
 .card > div:first-child,
 .card .imgBox,
 .card .thumb,
 .card .imageBox{
   position:relative;
   width:100%;
-  aspect-ratio:1 / 1;          /* square frame for consistency */
+  aspect-ratio:1 / 1;          /* square frame */
   display:grid;
   place-items:center;
   overflow:hidden;
   background:#ffffff;
   border-radius:10px;
-  padding:8px;                 /* breathing room around the figure */
+  padding:8px;
 }
 
-/* 2) Next.js Image renders an <img> inside a wrapper <span>.
-      Make the <img> scale to fit (no cropping). */
+/* Next.js <Image> injects a wrapper span + img; contain and center them */
 .card :where(img){
   width:auto !important;
   height:auto !important;
   max-width:90%;
   max-height:90%;
-  object-fit:contain !important;  /* show whole minifig */
+  object-fit:contain !important;
   image-rendering:auto;
 }
-
-/* 3) Some Next.js wrappers are inline-block with inline size.
-      Center the wrapper span inside the frame. */
 .card :where(span[style*="position:relative"]){
   display:grid !important;
   place-items:center !important;
   width:100% !important;
   height:100% !important;
+}
+
+/* Optional: product list price row */
+.priceRow{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px;
+}
+.addBtn{
+  padding:8px 10px; border-radius:8px; border:1px solid #204d69; color:#204d69; background:#fff;
 }
