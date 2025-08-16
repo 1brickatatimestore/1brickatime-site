@@ -1,0 +1,334 @@
+// src/pages/api/sync-bricklink.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { MongoClient, BulkWriteOperation } from 'mongodb';
+import crypto from 'crypto';
+import { randomBytes } from 'crypto';
+
+type SyncResult = {
+  success: boolean;
+  note?: string;
+  url?: string;
+  status?: number;
+  pageSummary?: {
+    itemsReturned?: number;
+    pagesFetched?: number;
+    sample?: any[];
+  };
+  db?: {
+    attemptedUpserts?: number;
+    upsertedCount?: number;
+  };
+  error?: string;
+};
+
+const {
+  MONGODB_URI = '',
+  BRICKLINK_CONSUMER_KEY,
+  BRICKLINK_CONSUMER_SECRET,
+  BRICKLINK_OAUTH_TOKEN,
+  BRICKLINK_OAUTH_TOKEN_SECRET,
+  BRICKLINK_USER_ID,
+} = process.env;
+
+function percentEncode(str: string): string {
+  return encodeURIComponent(str)
+    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function buildOAuthHeader(method: string, rawUrl: string) {
+  if (
+    !BRICKLINK_CONSUMER_KEY ||
+    !BRICKLINK_CONSUMER_SECRET ||
+    !BRICKLINK_OAUTH_TOKEN ||
+    !BRICKLINK_OAUTH_TOKEN_SECRET
+  ) {
+    throw new Error(
+      'Missing Bricklink OAuth env variables: BRICKLINK_CONSUMER_KEY/SECRET/OAUTH_TOKEN/OAUTH_TOKEN_SECRET'
+    );
+  }
+
+  const urlObj = new URL(rawUrl);
+  const baseUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+
+  // Collect query params from URL
+  const params: Record<string, string[]> = {};
+  // query params
+  for (const [k, v] of urlObj.searchParams.entries()) {
+    params[k] = params[k] || [];
+    params[k].push(v);
+  }
+
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key: BRICKLINK_CONSUMER_KEY,
+    oauth_token: BRICKLINK_OAUTH_TOKEN,
+    oauth_nonce: randomBytes(16).toString('hex'),
+    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_version: '1.0',
+  };
+
+  // Merge params for signature base string
+  const allParams: [string, string][] = [];
+
+  for (const [k, valArray] of Object.entries(params)) {
+    for (const v of valArray) {
+      allParams.push([percentEncode(k), percentEncode(v)]);
+    }
+  }
+  for (const [k, v] of Object.entries(oauthParams)) {
+    allParams.push([percentEncode(k), percentEncode(v)]);
+  }
+
+  // sort lexicographically by key then value
+  allParams.sort((a, b) => {
+    if (a[0] === b[0]) return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0;
+    return a[0] < b[0] ? -1 : 1;
+  });
+
+  const paramString = allParams.map(([k, v]) => `${k}=${v}`).join('&');
+
+  const baseString = [
+    method.toUpperCase(),
+    percentEncode(baseUrl),
+    percentEncode(paramString),
+  ].join('&');
+
+  const signingKey = `${percentEncode(BRICKLINK_CONSUMER_SECRET)}&${percentEncode(
+    BRICKLINK_OAUTH_TOKEN_SECRET
+  )}`;
+
+  const signature = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64');
+
+  const oauthHeaderParams: string[] = [];
+  const oauthHeaderSeq = [
+    'oauth_consumer_key',
+    'oauth_nonce',
+    'oauth_signature',
+    'oauth_signature_method',
+    'oauth_timestamp',
+    'oauth_token',
+    'oauth_version',
+  ];
+
+  const allOauth = { ...oauthParams, oauth_signature: signature };
+  for (const k of oauthHeaderSeq) {
+    if (allOauth[k]) {
+      oauthHeaderParams.push(`${k}="${percentEncode(allOauth[k])}"`);
+    }
+  }
+  const header = `OAuth ${oauthHeaderParams.join(', ')}`;
+
+  return { header, raw: allOauth, baseUrl, paramString, baseString };
+}
+
+/**
+ * Mongo client reuse (across hot reloads)
+ */
+declare global {
+  //  PAYPAL_CLIENT_SECRET_REDACTEDno-var
+  var __mongoClient__: { client?: MongoClient; promise?: Promise<MongoClient> };
+}
+const cached: { client?: MongoClient } = (global as any).__mongoClient__ || (global as any).__mongoClient__ = {};
+
+async function connectToMongo(): Promise<MongoClient> {
+  if (!MONGODB_URI) throw new Error('Please define the MONGODB_URI environment variable.');
+  if (cached.client) return cached.client;
+  const client = new MongoClient(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true } as any);
+  await client.connect();
+  cached.client = client;
+  return client;
+}
+
+function makeInventoryUrl(userId: string | undefined, offset = 0, limit = 100) {
+  if (!userId) throw new Error('BRICKLINK_USER_ID is not set.');
+  // limit default 100
+  return `https://api.bricklink.com/api/store/v1/inventories?user_id=${userId}&offset=${offset}&limit=${limit}`;
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse<SyncResult>) {
+  try {
+    const { query } = req;
+    const limitParam = Number(query.limit ?? 100);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(1000, limitParam) : 100;
+    const importFlag = query.import === '1' || query.import === 'true';
+    const dry = query.dry === '1' || query.dry === 'true';
+    const debugRaw = query.debug === 'raw' || query.debug === 'true';
+    const sampleSize = Number(query.sampleSize ?? 5);
+
+    // Quick OAuth header debug (no DB, no Bricklink fetch if debugRaw)
+    const firstUrl = makeInventoryUrl(BRICKLINK_USER_ID, 0, Math.max(1, Math.min(1000, limit)));
+    let oauthHeader;
+    try {
+      oauthHeader = buildOAuthHeader('GET', firstUrl);
+    } catch (err: any) {
+      return res.status(400).json({ success: false, error: String(err.message) });
+    }
+
+    if (debugRaw) {
+      return res.status(200).json({
+        success: true,
+        url: firstUrl,
+        headers: {
+          Authorization: oauthHeader.header,
+          Accept: 'application/json',
+        },
+        note: 'debug=raw returned OAuth header only (no inventory fetched).',
+      });
+    }
+
+    // Now perform paginated fetches
+    let offset = 0;
+    let pages = 0;
+    let totalFetched = 0;
+    const collectedSamples: any[] = [];
+    const collectionUpsertOps: BulkWriteOperation<any>[] = [];
+    const pageLimit = Math.max(1, Math.min(1000, limit)); // ensure reasonable
+
+    // connect DB only if we will import
+    let client: MongoClient | null = null;
+    let db: any = null;
+    let productsColl: any = null;
+    if (importFlag && !dry) {
+      client = await connectToMongo();
+      // client.db() uses default DB from connection string if present
+      db = client.db();
+      productsColl = db.collection('products');
+    }
+
+    while (true) {
+      const url = makeInventoryUrl(BRICKLINK_USER_ID, offset, pageLimit);
+      const { header } = buildOAuthHeader('GET', url);
+
+      const r = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: header,
+          Accept: 'application/json',
+        },
+      });
+
+      const status = r.status;
+      let json: any;
+      try {
+        json = await r.json();
+      } catch (e) {
+        // non-json
+        return res.status(502).json({ success: false, error: `Bad JSON from Bricklink (status ${status})` });
+      }
+
+      pages += 1;
+
+      // Bricklink returns array or object with data; try to extract inventory list
+      // Many Bricklink endpoints wrap in 'data' or return array directly. We'll try common shapes.
+      let items: any[] = [];
+      if (Array.isArray(json)) {
+        items = json;
+      } else if (Array.isArray(json.data)) {
+        items = json.data;
+      } else if (Array.isArray(json.inventories)) {
+        items = json.inventories;
+      } else if (Array.isArray(json.results)) {
+        items = json.results;
+      } else if (Array.isArray(json.items)) {
+        items = json.items;
+      } else if (json.page && Array.isArray(json.page.items)) {
+        items = json.page.items;
+      } else if (json && json.inventory && Array.isArray(json.inventory)) {
+        items = json.inventory;
+      } else {
+        // fallback: if an object with numeric keys, map them
+        const possible = Object.values(json).find((v) => Array.isArray(v));
+        if (Array.isArray(possible)) items = possible;
+      }
+
+      // If we still have no items but got success 200, bail with what we got
+      if (!Array.isArray(items) || items.length === 0) {
+        // stop if no items
+        break;
+      }
+
+      // collect sample
+      if (collectedSamples.length < sampleSize) {
+        collectedSamples.push(...items.slice(0, Math.max(1, sampleSize - collectedSamples.length)));
+      }
+
+      totalFetched += items.length;
+
+      // prepare upserts
+      if (importFlag && !dry && productsColl) {
+        // Convert items to upsert operations. Use inventory_id as the unique key.
+        const ops: BulkWriteOperation<any>[] = items.map((it) => {
+          // Make shallow copy and ensure _id not present
+          const doc = { ...it };
+          // We'll store inventory_id as provided
+          const filter = { inventory_id: doc.inventory_id };
+          // set entire doc (overwrite) but keep a field updatedAt
+          const update = {
+            $set: { ...doc, updatedAt: new Date() },
+            $setOnInsert: { createdAt: new Date() },
+          };
+          return {
+            updateOne: {
+              filter,
+              update,
+              upsert: true,
+            },
+          } as BulkWriteOperation<any>;
+        });
+
+        // accumulate and flush in batches
+        collectionUpsertOps.push(...ops);
+        // flush in chunks of 1000 ops
+        if (collectionUpsertOps.length >= 1000) {
+          const chunk = collectionUpsertOps.splice(0, 1000);
+          try {
+            const bulkResult = await productsColl.bulkWrite(chunk, { ordered: false });
+            // log
+            console.log(`sync-bricklink: bulkWrite chunk upsertedCount=${(bulkResult as any).upsertedCount || 0}`);
+          } catch (err) {
+            console.error('sync-bricklink: bulkWrite error', (err as Error).message || err);
+          }
+        }
+      }
+
+      // stop if fewer items than pageLimit -> last page
+      if (items.length < pageLimit) {
+        break;
+      }
+      // next page
+      offset += pageLimit;
+    }
+
+    // flush remaining upserts
+    let upsertedCount = 0;
+    if (importFlag && !dry && productsColl && collectionUpsertOps.length > 0) {
+      try {
+        const br = await productsColl.bulkWrite(collectionUpsertOps, { ordered: false });
+        upsertedCount = (br as any).upsertedCount || 0;
+      } catch (err) {
+        console.error('sync-bricklink: final bulkWrite error', (err as Error).message || err);
+      }
+    }
+
+    const result: SyncResult = {
+      success: true,
+      note: importFlag ? (dry ? 'dry-run; no DB writes performed' : 'import attempted') : 'fetch-only',
+      url: firstUrl,
+      status: 200,
+      pageSummary: {
+        itemsReturned: totalFetched,
+        pagesFetched: Math.max(0, Math.ceil(totalFetched / pageLimit)),
+        sample: collectedSamples.slice(0, sampleSize),
+      },
+      db: {
+        attemptedUpserts: importFlag && !dry ? undefined : undefined,
+        upsertedCount: upsertedCount,
+      },
+    };
+
+    return res.status(200).json(result);
+  } catch (err: any) {
+    console.error('sync-bricklink handler error', err?.message || err);
+    return res.status(500).json({ success: false, error: String(err?.message || err) });
+  }
+}

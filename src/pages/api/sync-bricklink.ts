@@ -1,273 +1,261 @@
 // src/pages/api/sync-bricklink.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
-import crypto from 'crypto'
-import dbConnect from '../../lib/db'
-import ProductModel from '../../models/Product'
+import type { NextApiRequest, NextApiResponse } from "next";
+import { MongoClient } from "mongodb";
+import crypto from "crypto";
 
-type BrickLinkItem = any
+// Environment variables expected (either BRICKLINK_* or BL_* variants should be set)
+const BRICKLINK_CONSUMER_KEY = process. PAYPAL_CLIENT_SECRET_REDACTED|| process.env.BL_KEY || process.env.BL_KEY;
+const BRICKLINK_CONSUMER_SECRET = process. PAYPAL_CLIENT_SECRET_REDACTED|| process.env.BL_SECRET;
+const BRICKLINK_OAUTH_TOKEN = process. PAYPAL_CLIENT_SECRET_REDACTED|| process.env.BL_TOKEN;
+const BRICKLINK_OAUTH_TOKEN_SECRET = process. PAYPAL_CLIENT_SECRET_REDACTED|| process.env.BL_TOKEN_SECRET;
+const BRICKLINK_USER_ID = process. PAYPAL_CLIENT_SECRET_REDACTED|| process.env.BL_USER_ID || process.env.BRICKLINK_USER_ID;
+const MONGODB_URI = process.env.MONGODB_URI;
 
+// Simple RFC3986-style percent-encode
 function pctEncode(s: string) {
   return encodeURIComponent(s)
-    .replace(/[!*()']/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+    .replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
-function makeNonce(len = 24) {
-  return crypto.randomBytes(Math.ceil(len / 2)).toString('hex').slice(0, len)
-}
+// build OAuth1 Authorization header (HMAC-SHA1)
+function buildOAuthHeader(method: string, rawUrl: string) {
+  if (!BRICKLINK_CONSUMER_KEY || !BRICKLINK_CONSUMER_SECRET || !BRICKLINK_OAUTH_TOKEN || !BRICKLINK_OAUTH_TOKEN_SECRET) {
+    throw new Error("Missing Bricklink OAuth env variables: BRICKLINK_CONSUMER_KEY/SECRET/OAUTH_TOKEN/OAUTH_TOKEN_SECRET");
+  }
 
-/**
- * Build OAuth1 Authorization header (HMAC-SHA1).
- * url: full URL string WITHOUT query parameters already appended? (we pass base URL)
- * method: "GET" etc.
- * params: object of query params that will be in the request (will be included in base string)
- */
-function buildOAuthHeader({
-  method,
-  baseUrl,
-  params,
-  consumerKey,
-  consumerSecret,
-  token,
-  tokenSecret,
-}: {
-  method: string
-  baseUrl: string
-  params: Record<string, string>
-  consumerKey: string
-  consumerSecret: string
-  token?: string
-  tokenSecret?: string
-}) {
+  const urlObj = new URL(rawUrl);
+  const baseUrl = `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+
+  // Collect query params from URL
+  const params: Record<string, string> = {};
+  urlObj.searchParams.forEach((v, k) => {
+    // include query params
+    params[k] = v;
+  });
+
+  // oauth params
   const oauth: Record<string, string> = {
-    oauth_consumer_key: consumerKey,
-    oauth_nonce: makeNonce(32),
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: String(Math.floor(Date.now() / 1000)),
-    oauth_version: '1.0',
-  }
-  if (token) oauth.oauth_token = token
+    oauth_consumer_key: BRICKLINK_CONSUMER_KEY!,
+    oauth_token: BRICKLINK_OAUTH_TOKEN!,
+    oauth_signature_method: "HMAC-SHA1",
+    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
+    oauth_nonce: crypto.randomBytes(8).toString("hex"),
+    oauth_version: "1.0",
+  };
 
-  // collect all params: oauth + query params
-  const allParams: [string, string][] = []
-  for (const k of Object.keys(oauth)) allParams.push([k, oauth[k]])
-  for (const k of Object.keys(params || {})) allParams.push([k, params[k]])
+  // Merge for signing
+  const allParams = Object.assign({}, params, oauth);
 
-  // percent-encode keys and values, sort by key then value
-  const encoded = allParams
-    .map(([k, v]) => [pctEncode(k), pctEncode(v)])
-    .sort((a: string[], b: string[]) => {
-      if (a[0] < b[0]) return -1
-      if (a[0] > b[0]) return 1
-      if (a[1] < b[1]) return -1
-      if (a[1] > b[1]) return 1
-      return 0
-    })
+  // Create normalized param string (sorted by encoded key)
+  const keys = Object.keys(allParams).sort();
+  const paramParts = keys.map(k => `${pctEncode(k)}=${pctEncode(allParams[k])}`);
+  const paramString = paramParts.join("&");
 
-  const paramString = encoded.map(([k, v]) => `${k}=${v}`).join('&')
-  const baseString =
-    method.toUpperCase() + '&' + pctEncode(baseUrl) + '&' + pctEncode(paramString)
+  const baseString = [
+    method.toUpperCase(),
+    pctEncode(baseUrl),
+    pctEncode(paramString)
+  ].join("&");
 
-  const signingKey = pctEncode(consumerSecret || '') + '&' + pctEncode(tokenSecret || '')
-  const hmac = crypto.createHmac('sha1', signingKey).update(baseString).digest('base64')
-  oauth.oauth_signature = hmac
+  const signingKey = `${pctEncode(BRICKLINK_CONSUMER_SECRET!)}&${pctEncode(BRICKLINK_OAUTH_TOKEN_SECRET!)}`;
 
-  // build Authorization header value
-  const header = 'OAuth ' + Object.keys(oauth)
-    .sort()
-    .map(k => `${pctEncode(k)}="${pctEncode(oauth[k])}"`)
-    .join(', ')
-  return header
+  const hmac = crypto.createHmac("sha1", signingKey);
+  hmac.update(baseString);
+  const signature = hmac.digest("base64");
+
+  oauth["oauth_signature"] = signature;
+
+  // Build header string
+  const headerParts = Object.keys(oauth).sort().map(k => `${pctEncode(k)}="${pctEncode(oauth[k])}"`);
+  const authHeader = `OAuth ${headerParts.join(", ")}`;
+
+  return authHeader;
 }
 
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 25000) {
-  const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal })
-    clearTimeout(id)
-    return res
-  } catch (err) {
-    clearTimeout(id)
-    throw err
+// small helper to extract an array of items from a Bricklink response body
+function extractItemsFromBody(body: any): any[] {
+  if (!body) return [];
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body.data)) return body.data;
+  if (body?.pageSummary && Array.isArray(body.pageSummary.sample)) return body.pageSummary.sample;
+  // find first array value
+  for (const v of Object.values(body)) {
+    if (Array.isArray(v)) return v;
   }
+  return [];
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // allow quick debug
-  const { debug = '', limit: qLimit, import: importFlag, dry = '' } = req.query
-
-  const BL_KEY = process.env.BL_KEY
-  const BL_SECRET = process.env.BL_SECRET
-  const BL_TOKEN = process.env.BL_TOKEN
-  const BL_TOKEN_SECRET = process.env.BL_TOKEN_SECRET
-  const BL_USER_ID = process.env.BL_USER_ID || process.env.BL_USER || ''
-
-  if (!BL_KEY || !BL_SECRET || !BL_TOKEN) {
-    return res.status(500).json({ success: false, error: 'Missing Bricklink credentials in env' })
-  }
-  if (!BL_USER_ID) {
-    return res.status(500).json({ success: false, error: 'Missing BL_USER_ID in env' })
-  }
-
-  // per-request page size (Bricklink accepts up to 1000)
-  const perPage = Math.min(Number(qLimit ?? 1000), 1000) || 1000
-  const doImport = String(importFlag || '') === '1' && String(dry || '') !== '1'
-  const doDry = String(dry || '') === '1'
-
-  const baseUrl = `https://api.bricklink.com/api/store/v1/inventories`
-  // we'll append ?user_id=...&offset=...&limit=...
-  let offset = 0
-  const sample: any[] = []
-  let fetchedTotal = 0
-  let pages = 0
-
-  // debug=raw -> only return URL & header for the first request (useful to test in curl)
-  if (String(debug) === 'raw') {
-    const params = { user_id: String(BL_USER_ID), offset: '0', limit: String(perPage) }
-    const url = `${baseUrl}?user_id=${encodeURIComponent(params.user_id)}&offset=${params.offset}&limit=${params.limit}`
-    const authHeader = buildOAuthHeader({
-      method: 'GET',
-      baseUrl,
-      params,
-      consumerKey: BL_KEY,
-      consumerSecret: BL_SECRET,
-      token: BL_TOKEN,
-      tokenSecret: BL_TOKEN_SECRET,
-    })
-    return res.status(200).json({ success: true, url, headers: { Authorization: authHeader, Accept: 'application/json' } })
-  }
-
-  // If we will import into DB, ensure connection is ready
-  if (doImport && !doDry) {
-    try {
-      await dbConnect()
-    } catch (err: any) {
-      console.error('dbConnect error', err)
-      return res.status(500).json({ success: false, error: 'DB connect failed', detail: String(err?.message || err) })
-    }
-  }
-
   try {
-    // loop pages. Stop when a page returns fewer than perPage (no more items).
-    for (;;) {
-      const params = { user_id: String(BL_USER_ID), offset: String(offset), limit: String(perPage) }
-      const url = `${baseUrl}?user_id=${encodeURIComponent(params.user_id)}&offset=${params.offset}&limit=${params.limit}`
+    // Basic param handling
+    const debug = req.query.debug === "raw";
+    const fast = req.query.fast === "1" || req.query.fast === "true";
+    const doImport = req.query.import === "1" || req.query.import === "true";
+    const dryRun = req.query.dry === "1" || req.query.dry === "true";
+    const sampleSize = parseInt((req.query.sampleSize as string) || "5", 10) || 5;
+    const limitParam = parseInt((req.query.limit as string) || "100", 10) || 100;
+    const pageLimit = Math.min(Math.max(limitParam, 1), 1000); // clamp
 
-      const authHeader = buildOAuthHeader({
-        method: 'GET',
-        baseUrl,
-        params,
-        consumerKey: BL_KEY,
-        consumerSecret: BL_SECRET,
-        token: BL_TOKEN,
-        tokenSecret: BL_TOKEN_SECRET,
-      })
+    if (!BRICKLINK_USER_ID) {
+      return res.status(400).json({ success: false, message: "Missing BRICKLINK user id (BRICKLINK_USER_ID or BL_USER_ID)" });
+    }
 
-      // server logs
-      const start = Date.now()
-      const resp = await fetchWithTimeout(url, { method: 'GET', headers: { Authorization: authHeader, Accept: 'application/json' } }, 30000)
-      const elapsed = Date.now() - start
-      console.log(`sync-bricklink: GET ${url} -> status ${resp.status} (elapsed ${elapsed}ms)`)
+    // build a base URL template - we'll add offset per page
+    const userId = BRICKLINK_USER_ID;
+    const baseLimit = pageLimit;
+    const baseUrl = `https://api.bricklink.com/api/store/v1/inventories?user_id=${encodeURIComponent(userId)}&limit=${baseLimit}`;
 
-      if (!resp.ok) {
-        const txt = await resp.text().catch(() => '')
-        console.error('Bricklink fetch error', resp.status, txt)
-        return res.status(500).json({ success: false, error: `Bricklink request failed: ${resp.status}`, detail: txt })
-      }
-
-      const body = await resp.json().catch(() => null)
-      if (!body || !Array.isArray(body.data || body.sample || body)) {
-        // some Bricklink responses embed data in `data` or return array directly or `sample` — try to adapt:
-        const arr = body?.data || body?.sample || body
-        if (!Array.isArray(arr)) {
-          // unknown structure
-          return res.status(500).json({ success: false, error: 'Unexpected Bricklink response structure', body })
-        }
-        // else we will treat arr as items
-        (arr as any[]).forEach(it => sample.push(it))
-        fetchedTotal += (arr as any[]).length
-        pages++
-        // if arr length < perPage -> done
-        if ((arr as any[]).length < perPage) break
-        offset += perPage
-        continue
-      }
-
-      // When response has "data" or returns array
-      const items: BrickLinkItem[] = body.data ?? body.sample ?? body
-      // accumulate a sample of first 20 results for the response body
-      for (let i = 0; i < items.length && sample.length < 20; i++) sample.push(items[i])
-
-      // optionally upsert products into MongoDB in bulk (per page)
-      if (doImport && !doDry) {
-        const ops = items.map((inv: any) => {
-          // transform Bricklink inventory item -> Product model fields
-          const inventoryId = Number(inv.inventory_id || inv.inventoryId || 0) || undefined
-          const itemNo = inv.item?.no ?? inv.item_no ?? ''
-          const pType = (inv.item?.type ?? '').toUpperCase()
-          // price might be unit_price or price
-          const unitPrice = parseFloat(String(inv.unit_price ?? inv.price ?? 0)) || 0
-          const qty = Number(inv.quantity ?? inv.qty ?? 0)
-          const doc: any = {
-            inventoryId,
-            itemNo,
-            type: (pType === 'MINIFIG' ? 'MINIFIG' : (pType === 'SET' ? 'SET' : 'PART')),
-            categoryId: inv.item?.category_id ?? inv.category_id,
-            name: inv.item?.name ?? inv.name ?? '',
-            price: unitPrice,
-            qty,
-            condition: inv.new_or_used ?? inv.condition,
-            imageUrl: inv.imageUrl ?? inv.item?.imageUrl ?? '',
-            description: inv.description ?? '',
-            remarks: inv.remarks ?? '',
+    // debug=raw should only return the URL and Authorization header (no network calls to BrickLink)
+    if (debug) {
+      const url = `${baseUrl}&offset=0`;
+      try {
+        const auth = buildOAuthHeader("GET", url);
+        return res.status(200).json({
+          success: true,
+          url,
+          headers: {
+            Authorization: auth,
+            Accept: "application/json"
           }
-          // upsert by inventoryId if present, otherwise by itemNo (not ideal, but fallback)
-          const filter = (inventoryId ? { inventoryId } : { itemNo: doc.itemNo })
-          const update = { $set: doc, $setOnInsert: { createdAt: new Date() } }
-          return { updateOne: { filter, update, upsert: true } }
-        })
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, message: err.message || String(err) });
+      }
+    }
 
-        if (ops.length > 0) {
+    // We'll call Bricklink pages iteratively
+    const resultsSummary: any = {
+      pages: 0,
+      itemsProcessed: 0,
+      errors: []
+    };
+
+    // If import requested, ensure Mongo URI available
+    let mongoClient: any = null;
+    let productsCollection: any = null;
+    if (doImport && !dryRun) {
+      if (!MONGODB_URI) {
+        return res.status(500).json({ success: false, message: "MONGODB_URI is required to import." });
+      }
+      mongoClient = new MongoClient(MONGODB_URI);
+      await mongoClient.connect();
+      const db = mongoClient.db(); // uses DB from URI if present
+      productsCollection = db.collection("products"); // writes go to products collection
+    }
+
+    // iterate pages
+    let offset = 0;
+    let keepGoing = true;
+    const maxPages = 10000; // safety cap (very large)
+    let pageCount = 0;
+
+    while (keepGoing && pageCount < maxPages) {
+      pageCount++;
+      const url = `${baseUrl}&offset=${offset}`;
+      let authHeader: string;
+      try {
+        authHeader = buildOAuthHeader("GET", url);
+      } catch (err: any) {
+        resultsSummary.errors.push({ page: pageCount, error: `OAuth build error: ${err.message || String(err)}` });
+        break;
+      }
+
+      // fetch
+      const fetchRes = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: authHeader,
+          Accept: "application/json"
+        }
+      });
+
+      if (!fetchRes.ok) {
+        const text = await fetchRes.text().catch(() => "");
+        resultsSummary.errors.push({ page: pageCount, status: fetchRes.status, text: text.substring(0, 2000) });
+        // stop on non-200
+        break;
+      }
+
+      const body = await fetchRes.json().catch(() => null);
+      const items = extractItemsFromBody(body);
+      resultsSummary.pages = pageCount;
+      resultsSummary.itemsProcessed += Array.isArray(items) ? items.length : 0;
+
+      // If fast requested, just return the page summary (avoid huge responses)
+      if (fast) {
+        // include a tiny sample when available
+        const sample = Array.isArray(items) ? items.slice(0, sampleSize) : [];
+        return res.status(200).json({
+          success: true,
+          url,
+          status: fetchRes.status,
+          elapsed: fetchRes.headers.get("x-response-time") || undefined,
+          pageSummary: {
+            itemsReturned: Array.isArray(items) ? items.length : 0,
+            sample
+          },
+          note: "fast=1 returns only first page summary to avoid huge responses."
+        });
+      }
+
+      // If doImport requested: upsert items into DB (unless dryRun)
+      if (doImport && Array.isArray(items) && items.length > 0) {
+        for (const it of items) {
           try {
-            // execute bulkWrite in batches to avoid huge operations
-            const BATCH = 500
-            for (let i = 0; i < ops.length; i += BATCH) {
-              const batch = ops.slice(i, i + BATCH)
-              await ProductModel.bulkWrite(batch, { ordered: false })
+            // determine unique key - prefer inventory_id if present
+            const keyFilter: any = {};
+            if (it && (it.inventory_id || it.inventoryId)) {
+              keyFilter.inventory_id = it.inventory_id || it.inventoryId;
+            } else if (it.item && it.item.no) {
+              // fallback composite key
+              keyFilter["item.no"] = it.item.no;
+              if (it.color_id) keyFilter.color_id = it.color_id;
+            } else {
+              // last fallback - skip
+              continue;
+            }
+
+            if (!dryRun && productsCollection) {
+              // Upsert full object (native driver so not affected by mongoose strict mode)
+              await productsCollection.updateOne(keyFilter, { $set: it }, { upsert: true });
             }
           } catch (err: any) {
-            console.error('DB bulkWrite error', err)
-            // continue but report warning
+            resultsSummary.errors.push({ page: pageCount, itemKey: it && (it.inventory_id || (it.item && it.item.no)) || null, error: String(err?.message || err) });
+            // continue processing other items
           }
         }
       }
 
-      fetchedTotal += items.length
-      pages++
-
-      // stop when fewer than perPage received
-      if (items.length < perPage) break
-
-      // page forward
-      offset += perPage
-
-      // safety limit: avoid infinite loops — stop after 10000 pages
-      if (pages > 10000) {
-        console.warn('sync-bricklink: safety break after 10000 pages')
-        break
+      // Decide whether to keep going: if items length < page limit, we've reached end
+      if (!Array.isArray(items) || items.length === 0 || items.length < baseLimit) {
+        keepGoing = false;
+      } else {
+        offset += baseLimit;
       }
-    } // end loop
+    }
 
+    // close mongo if opened
+    if (mongoClient) {
+      await mongoClient.close();
+    }
+
+    // If we only requested safe dry-run sample, attempt to return a sample
+    if (doImport && dryRun) {
+      return res.status(200).json({
+        success: true,
+        message: "dry-run completed (no DB writes).",
+        summary: resultsSummary
+      });
+    }
+
+    // Normal finish
     return res.status(200).json({
       success: true,
-      fetched: fetchedTotal,
-      pages,
-      sample,
-      note: `Fetched ${fetchedTotal} items (paginated ${pages} pages, perPage ${perPage}).`,
-      imported: doImport && !doDry ? 'attempted' : 'skipped',
-    })
+      message: "sync finished",
+      summary: resultsSummary
+    });
   } catch (err: any) {
-    console.error('sync-bricklink error', err)
-    return res.status(500).json({ success: false, error: String(err?.message || err) })
+    console.error("sync-bricklink handler error", err);
+    return res.status(500).json({ success: false, error: String(err?.message || err) });
   }
 }
