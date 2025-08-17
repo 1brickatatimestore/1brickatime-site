@@ -3,19 +3,22 @@ import mongoose from 'mongoose'
 
 declare global {
   //  PAYPAL_CLIENT_SECRET_REDACTEDno-var
-  var _mongooseConn: Promise<typeof mongoose> | undefined
+  var __MONGOOSE_CONN: Promise<typeof mongoose> | null
 }
 
-const MONGODB_URI = process.env.MONGODB_URI
+const { MONGODB_URI } = process.env
 if (!MONGODB_URI) {
-  throw new Error('Missing MONGODB_URI in environment')
+  throw new Error('MONGODB_URI is not set')
 }
 
-export default async function dbConnect() {
-  if (!global._mongooseConn) {
-    global._mongooseConn = mongoose.connect(MONGODB_URI, {
-      // keep defaults simple; Mongoose v7+ uses modern drivers
-    })
+export default async function dbConnect(uri = MONGODB_URI) {
+  if (!global.__MONGOOSE_CONN) {
+    global.__MONGOOSE_CONN = mongoose
+      .connect(uri, {
+        maxPoolSize: 8,
+        serverSelectionTimeoutMS: 6000,
+      })
+      .then((m) => m)
   }
-  return global._mongooseConn
+  return global.__MONGOOSE_CONN
 }
