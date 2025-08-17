@@ -1,4 +1,4 @@
-// src/pages/api/minifigs.js
+// src/pages/api/products.js
 import { MongoClient, ObjectId } from "mongodb";
 
 const uri = process.env.MONGODB_URI;

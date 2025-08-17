@@ -1,4 +1,4 @@
-import { useCart } from '../components/CartContext'
+import { useCart } from '../context/CartContext'
 import { useMemo } from 'react'
 
 const format = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD' })

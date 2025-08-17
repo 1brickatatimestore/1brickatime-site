@@ -1,3 +1,4 @@
+// src/components/Layout.tsx
 import Link from 'next/link'
 import Image from 'next/image'
 import type { ReactNode } from 'react'
@@ -9,12 +10,12 @@ type Props = { children: ReactNode }
 export default function SiteLayout({ children }: Props) {
   return (
     <div className={s.shell}>
-      {/* Left stud rail (uses your existing CSS for full height) */}
+      {/* Left stud rail */}
       <div className={s.rail}>
         <Image src="/stud-rail.png" alt="" fill priority className={s.railImg} />
       </div>
 
-      {/* Header: full-width blue bar */}
+      {/* Header */}
       <header className={s.header}>
         <nav className={s.nav}>
           <div className={s.brand}>
@@ -24,19 +25,19 @@ export default function SiteLayout({ children }: Props) {
 
           <div className={s.links} style={{ alignItems: 'center' }}>
             <Link href="/">Home</Link>
-            <Link href="/minifigs?type=MINIFIG&limit=36">Minifigs</Link>
-            <Link href="/minifigs-by-theme">Minifigs by Theme</Link>
+            <Link href="/minifigs-by-theme">Minifigures</Link>
+            {/* If you want to keep a Themes link, point it to /minifigs (the redirect also works) */}
+            {/* <Link href="/minifigs-by-theme">Minifigures</Link> */}
             <Link href="/checkout">Checkout</Link>
-            {/* Cart icon on the far right */}
-            <CartBadge />
+            <Link href="/cart"><CartBadge /></Link>
           </div>
         </nav>
       </header>
 
-      {/* Main content */}
+      {/* Main */}
       <main className={s.main}>{children}</main>
 
-      {/* Footer: full-width blue bar with your banner image */}
+      {/* Footer */}
       <footer className={s.footer}>
         <Image
           src="/footer-banner.png"
