@@ -1,3 +1,4 @@
+// src/pages/minifigs-by-theme.tsx
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -12,10 +13,13 @@ type Item = {
   itemNo?: string
   price?: number
   condition?: string
-  imageUrl?: string
+  imageUrl?: string | null
+  qty?: number | null
+  type?: string | null
 }
 
 type ThemeOpt = { key: string; label: string; count: number }
+
 type Props = {
   items: Item[]
   count: number
@@ -28,6 +32,24 @@ type Props = {
   sort?: string
   theme: string
   themeOptions: ThemeOpt[]
+}
+
+function decodeHtml(input?: string | null) {
+  if (!input) return ''
+  return input
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function imgFor(p: Item) {
+  const direct = (p.imageUrl || '').trim()
+  if (direct) return direct
+  const code = (p.itemNo || '').trim()
+  return code ? `https://img.bricklink.com/ItemImage/MN/0/${code}.png` : ''
 }
 
 export default function MinifigsByThemePage({
@@ -83,13 +105,13 @@ export default function MinifigsByThemePage({
   return (
     <>
       <Head>
-        <title>{`Minifigs by Theme — 1 Brick at a Time`}</title>
+        <title>Minifigs by Theme — 1 Brick at a Time</title>
       </Head>
 
       <main className="wrap">
         <form className="filters" onSubmit={onSubmit}>
           <select name="theme" defaultValue={theme || ''} className="select">
-            <option value="">{`All themes`}</option>
+            <option value="">All themes</option>
             {themeOptions.map(t => (
               <option key={t.key} value={t.key}>
                 {t.label} ({t.count})
@@ -145,16 +167,20 @@ export default function MinifigsByThemePage({
           <>
             <div className="grid">
               {items.map((p) => {
-                const id = p.inventoryId ? String(p.inventoryId) : (p._id as string)
-                const href = `/minifig/${encodeURIComponent(id)}`
+                const href = `/minifig/${encodeURIComponent(p.itemNo || p._id || String(p.inventoryId || ''))}`
+                const name = decodeHtml(p.name) || p.itemNo || 'Minifig'
+                const img = imgFor(p)
+                const price = typeof p.price === 'number' ? p.price : 0
+                const qty = typeof p.qty === 'number' ? p.qty : 0
+
                 return (
-                  <article key={id} className="card">
-                    <Link href={href} className="imgLink" aria-label={p.name || p.itemNo || 'Minifig'}>
+                  <article key={href} className="card">
+                    <Link href={href} className="imgLink" aria-label={name}>
                       <div className="imgBox">
-                        {p.imageUrl ? (
+                        {img ? (
                           <Image
-                            src={p.imageUrl}
-                            alt={p.name || p.itemNo || 'Minifig'}
+                            src={img}
+                            alt={name}
                             fill
                             sizes="(max-width: 900px) 50vw, 240px"
                             style={{ objectFit: 'contain', objectPosition: 'center' }}
@@ -165,28 +191,33 @@ export default function MinifigsByThemePage({
                       </div>
                     </Link>
 
-                    <h3 className="name" title={p.name}>
-                      <Link href={href}>{p.name || p.itemNo || 'Minifig'}</Link>
+                    <h3 className="name" title={name}>
+                      <Link href={href}>{name}</Link>
                     </h3>
 
                     <div className="priceRow">
                       <span className="price">
-                        ${Number(p.price ?? 0).toFixed(2)} {p.condition ? `• ${p.condition}` : ''}
+                        {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(price)}
+                        {p.condition ? ` • ${p.condition}` : ''}
                       </span>
                       <button
                         className="addBtn"
                         onClick={() =>
                           add({
-                            id,
-                            name: p.name ?? p.itemNo ?? 'Minifig',
-                            price: Number(p.price ?? 0),
+                            id: p.itemNo || p._id || String(p.inventoryId || ''),
+                            name,
+                            price,
                             qty: 1,
-                            imageUrl: p.imageUrl,
+                            imageUrl: img || undefined,
                           })
                         }
                       >
                         Add to cart
                       </button>
+                    </div>
+
+                    <div className={`stock ${qty > 0 ? 'ok' : 'out'}`}>
+                      {qty > 0 ? `${qty} in stock` : 'Sold out'}
                     </div>
                   </article>
                 )
@@ -231,6 +262,9 @@ export default function MinifigsByThemePage({
         .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; }
         .price { font-weight:700; color:#2a2a2a; }
         .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; cursor:pointer; }
+        .stock { font-size:12px; margin-top:6px; }
+        .stock.ok { color:#1a7f37; }
+        .stock.out { color:#8a8a8a; }
         .pager { display:flex; gap:12px; align-items:center; justify-content:space-between; margin:18px 0 6px; }
         .pbtn { border:2px solid #204d69; color:#204d69; padding:6px 12px; border-radius:8px; font-weight:700; }
         .pmeta { color:#333; font-weight:600; }

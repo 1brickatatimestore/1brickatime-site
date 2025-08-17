@@ -1,113 +1,70 @@
-import React from 'react'
+// src/components/MinifigCard.tsx
+import Link from 'next/link'
 
-export type Minifig = {
-  id: string | number
-  name: string
+type P = {
+  _id?: string
+  itemNo?: string
+  name?: string
   price?: number
-  currency?: string
-  condition?: string
-  remarks?: string
-  imageUrl?: string
-  // keep extra fields harmlessly
-  [key: string]: any
+  qty?: number
+  imageUrl?: string | null
 }
 
-type Props = { item: Minifig }
+function imgFor(p: P): string {
+  // If the DB already has a URL, use it.
+  if (p.imageUrl && p.imageUrl.trim()) return p.imageUrl.trim()
+  // Fallback for minifigs: BrickLink’s standard image path.
+  // Example: https://img.bricklink.com/ItemImage/MN/0/sw0257a.png
+  const code = (p.itemNo || '').trim()
+  if (!code) return '/no-image.png' // absolute last resort (never used if code exists)
+  return `https://img.bricklink.com/ItemImage/MN/0/${code}.png`
+}
 
-export default function MinifigCard({ item }: Props) {
-  const {
-    id,
-    name,
-    price,
-    currency = 'USD',
-    condition,
-    remarks,
-    imageUrl,
-  } = item
+export default function MinifigCard({ p }: { p: P }) {
+  const href = `/minifig/${p.itemNo || p._id}`
+  const img = imgFor(p)
 
   return (
-    <article className="mfCard" data-id={id}>
-      <div className="mfThumb">
-        {/* Use <img> to avoid Next image domain config issues */}
-        <img
-          src={imageUrl || '/file.svg'}
-          alt={name}
-          loading="lazy"
-        />
-      </div>
+    <div className="card">
+      <Link href={href} className="imgLink" aria-label={p.name || p.itemNo || 'Minifig'}>
+        {/* using <img> keeps it simple and fast here */}
+        <img src={img} alt={p.name || p.itemNo || 'Minifig'} width={360} height={360} />
+      </Link>
 
-      <div className="mfBody">
-        <h3 className="mfTitle" title={name}>{name}</h3>
+      <div className="cardBody">
+        <h3>
+          <Link href={href}>{p.name || p.itemNo || 'Minifig'}</Link>
+        </h3>
 
-        <div className="mfMeta">
-          {condition && <span className="mfPill">{condition}</span>}
-          {typeof price === 'number' && (
-            <span className="mfPrice">
-              {currency} {price.toFixed(2)}
+        <div className="meta">
+          {typeof p.price === 'number' ? (
+            <span className="price">
+              {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(p.price)}
             </span>
+          ) : <span className="price">—</span>}
+
+          {typeof p.qty === 'number' && p.qty > 0 ? (
+            <span className="stock ok">{p.qty} in stock</span>
+          ) : (
+            <span className="stock out">Sold out</span>
           )}
         </div>
 
-        {remarks && (
-          <p className="mfNotes" title={remarks}>
-            {remarks.length > 90 ? remarks.slice(0, 87) + '…' : remarks}
-          </p>
-        )}
+        <button className="btn" type="button">Add to cart</button>
       </div>
 
       <style jsx>{`
-        .mfCard {
-          display: grid;
-          grid-template-rows: 184px auto;
-          background: #fff;
-          border: 1px solid rgba(0,0,0,.08);
-          border-radius: 14px;
-          overflow: hidden;
-          box-shadow: 0 2px 6px rgba(0,0,0,.06);
-        }
-        .mfThumb {
-          background: #f3f3f3;
-          display: grid;
-          place-items: center;
-        }
-        .mfThumb img {
-          max-width: 100%;
-          max-height: 100%;
-          object-fit: contain;
-        }
-        .mfBody { padding: 10px 12px 12px; }
-        .mfTitle {
-          margin: 0 0 6px;
-          font-size: 16px;
-          line-height: 1.2;
-        }
-        .mfMeta {
-          display: flex; gap: 8px; align-items: center;
-          font-size: 14px;
-          margin-bottom: 6px;
-        }
-        .mfPill {
-          background: #ffe5e0;
-          color: #b5463b;
-          border: 1px solid #f2b6ad;
-          padding: 2px 8px;
-          border-radius: 999px;
-        }
-        .mfPrice {
-          margin-left: auto;
-          font-weight: 700;
-          color: #204d69;
-          background: #e7f1f6;
-          border: 1px solid #c8dbe6;
-          padding: 2px 8px;
-          border-radius: 8px;
-        }
-        .mfNotes {
-          margin: 8px 0 0;
-          font-size: 13px;
-          color: #333;
-        }
+        .card { background:#fff; border-radius:12px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+        .imgLink { display:block; border-radius:10px; background:#f4f4f4; overflow:hidden; text-align:center; }
+        .imgLink img { width:100%; height:auto; display:block; }
+        .cardBody { padding:10px 4px 2px; }
+        h3 { margin:0 0 6px; font-size:15px; line-height:1.25; }
+        .meta { display:flex; gap:10px; align-items:center; margin:6px 0 10px; }
+        .price { font-weight:700; }
+        .stock.ok { color:#1a7f37; }
+        .stock.out { color:#8a8a8a; }
+        .btn { background:#e1b946; border:2px solid #a2801a; padding:8px 12px; border-radius:8px; font-weight:700; }
       `}</style>
-    </article>
+    </div>
   )
 }

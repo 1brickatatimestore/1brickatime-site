@@ -1,142 +1,61 @@
-// src/pages/cart.tsx
 import Head from 'next/head'
 import Image from 'next/image'
-import { useState } from 'react'
+import Link from 'next/link'
 import { useCart } from '@/context/CartContext'
 
-const BANK_DETAILS = {
-  name: 'Kamila McIntyre',
-  bsb: '032-513',
-  account: '450871',
-}
-
 export default function CartPage() {
-  const { items, updateQty, remove, subtotal, clear } = useCart()
-  const [placing, setPlacing] = useState(false)
-  const [placed, setPlaced] = useState<{ id: string; subtotal: number } | null>(null)
-  const [contact, setContact] = useState({ name: '', email: '', notes: '' })
-
-  const placeOrder = async () => {
-    if (items.length === 0) return
-    setPlacing(true)
-    try {
-      const r = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          method: 'BANK',
-          items,
-          contact,
-        }),
-      })
-      const j = await r.json()
-      if (j.ok) {
-        setPlaced({ id: j.orderId, subtotal: j.subtotal })
-        clear()
-      } else {
-        alert(j.error || 'Failed to place order')
-      }
-    } catch (e: any) {
-      alert(e.message || 'Network error')
-    } finally {
-      setPlacing(false)
-    }
-  }
+  const { items, inc, dec, remove, subtotal } = useCart()
+  const has = items.length > 0
+  const money = (n: number) => `AU$${(Number(n) || 0).toFixed(2)}`
 
   return (
     <>
-      <Head><title>Cart</title></Head>
+      <Head><title>Cart — 1 Brick at a Time</title></Head>
       <main className="wrap">
         <h1>Cart</h1>
 
-        {items.length === 0 && !placed && <p>Your cart is empty.</p>}
-
-        {!!items.length && (
-          <div className="cart">
-            {items.map(it => (
-              <div className="row" key={it.inventoryId}>
-                <div className="img">
-                  {it.imageUrl ? (
-                    <Image src={it.imageUrl} alt={it.name || ''} width={72} height={72} />
-                  ) : <div className="noImg">No image</div>}
-                </div>
-                <div className="info">
-                  <div className="name">{it.name || it.itemNo}</div>
-                  <div className="meta">
-                    <span>${it.price.toFixed(2)}</span>
-                    <label>
-                      Qty:
-                      <input
-                        type="number"
-                        min={1}
-                        value={it.qty}
-                        onChange={e => updateQty(it.inventoryId, Math.max(1, parseInt(e.target.value || '1', 10)))}
-                      />
-                    </label>
+        {!has ? (
+          <p>Your cart is empty. <Link href="/minifigs-by-theme">Browse minifigs</Link>.</p>
+        ) : (
+          <div className="grid">
+            <section className="items">
+              {items.map(it => (
+                <article key={it.id} className="row">
+                  <div className="thumb">
+                    <Image src={it.imageUrl || '/no-image.png'} alt={it.name} fill style={{objectFit:'contain'}} />
                   </div>
-                </div>
-                <button className="rm" onClick={() => remove(it.inventoryId)}>×</button>
-              </div>
-            ))}
-            <div className="sum">
-              <div>Subtotal</div>
-              <div className="money">${subtotal.toFixed(2)}</div>
-            </div>
+                  <div className="name">{it.name}</div>
+                  <div className="qty">
+                    <button onClick={() => dec(it.id)}>-</button>
+                    <span>{it.qty}</span>
+                    <button onClick={() => inc(it.id)}>+</button>
+                  </div>
+                  <div className="price">{money(it.price)}</div>
+                  <div className="line">{money(it.price * it.qty)}</div>
+                  <button className="remove" onClick={() => remove(it.id)}>Remove</button>
+                </article>
+              ))}
+            </section>
 
-            <div className="contact">
-              <h3>Contact</h3>
-              <label>Full name
-                <input value={contact.name} onChange={e => setContact(v => ({ ...v, name: e.target.value }))} />
-              </label>
-              <label>Email
-                <input value={contact.email} onChange={e => setContact(v => ({ ...v, email: e.target.value }))} />
-              </label>
-              <label>Notes (optional)
-                <textarea rows={3} value={contact.notes} onChange={e => setContact(v => ({ ...v, notes: e.target.value }))} />
-              </label>
-            </div>
-
-            <button className="place" disabled={placing} onClick={placeOrder}>
-              {placing ? 'Placing…' : 'Place Order (Bank Deposit)'}
-            </button>
-          </div>
-        )}
-
-        {placed && (
-          <div className="placed">
-            <h2>Order Placed</h2>
-            <p><strong>Order ID:</strong> {placed.id}</p>
-            <p><strong>Amount:</strong> ${placed.subtotal.toFixed(2)}</p>
-            <div className="bank">
-              <h3>Bank Deposit Details</h3>
-              <p><strong>Name:</strong> {BANK_DETAILS.name}</p>
-              <p><strong>BSB:</strong> {BANK_DETAILS.bsb}</p>
-              <p><strong>Account:</strong> {BANK_DETAILS.account}</p>
-              <p>Please include your Order ID as the payment reference.</p>
-            </div>
+            <aside className="summary">
+              <h2>Summary</h2>
+              <div className="sum"><span>Subtotal</span><strong>{money(subtotal)}</strong></div>
+              <Link className="btn" href="/checkout">Proceed to checkout</Link>
+            </aside>
           </div>
         )}
       </main>
 
       <style jsx>{`
-        .wrap { max-width: 900px; margin:0 auto; padding:20px 24px 40px; }
-        h1 { margin: 0 0 12px; }
-        .cart { background:#fff; border:1px solid #e7e2d9; border-radius:12px; padding:12px; }
-        .row { display:grid; grid-template-columns: 84px 1fr 32px; gap:12px; align-items:center; padding:8px 0; border-bottom:1px dashed #eee; }
-        .row:last-child { border-bottom:none; }
-        .img { width:72px; height:72px; display:grid; place-items:center; background:#faf8f4; border-radius:8px; overflow:hidden; }
-        .noImg { color:#888; font-size:12px; }
-        .name { font-weight:600; margin-bottom:6px; }
-        .meta { display:flex; gap:16px; align-items:center; color:#333; }
-        input[type="number"] { width:72px; padding:6px; border:1px solid #cfcfcf; border-radius:8px; }
-        .rm { border:none; background:transparent; font-size:20px; line-height:1; cursor:pointer; }
-        .sum { display:flex; justify-content:space-between; padding:12px 4px; font-size:16px; border-top:1px solid #eee; margin-top:6px; }
-        .money { font-weight:800; }
-        .contact { margin-top:16px; display:grid; gap:8px; }
-        .contact input, .contact textarea { width:100%; padding:8px; border:1px solid #cfcfcf; border-radius:8px; }
-        .place { margin-top:12px; padding:10px 14px; border:1px solid #204d69; color:#fff; background:#204d69; border-radius:8px; }
-        .placed { background:#fff; border:1px solid #e7e2d9; border-radius:12px; padding:16px; }
-        .bank { background:#f0f6fb; border:1px solid #cfe2f3; border-radius:8px; padding:12px; margin-top:10px; }
+        .wrap{ margin-left:64px; padding:20px; }
+        .grid{ display:grid; grid-template-columns:1fr 300px; gap:20px; }
+        .items{ display:flex; flex-direction:column; gap:10px; }
+        .row{ display:grid; grid-template-columns:100px 1fr 120px 120px 120px 100px; gap:10px; align-items:center; background:#fff; padding:10px; border-radius:10px; }
+        .thumb{ position:relative; width:100px; height:100px; background:#f6f4f0; border-radius:10px; overflow:hidden; }
+        .qty button{ width:28px; height:28px; }
+        .summary{ background:#fff; padding:14px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.08); height:max-content; }
+        .btn{ display:block; text-align:center; margin-top:12px; padding:10px; border-radius:8px; background:#e1b946; border:2px solid #a2801a; font-weight:800; color:#1a1a1a; }
+        @media (max-width:900px){ .grid{ grid-template-columns:1fr; } .row{ grid-template-columns:80px 1fr 100px 90px 90px 80px; } }
       `}</style>
     </>
   )

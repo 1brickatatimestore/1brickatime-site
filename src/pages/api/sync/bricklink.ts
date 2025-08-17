@@ -3,101 +3,173 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import mongoose from 'mongoose'
 import dbConnect from '@/lib/dbConnect'
 import Product from '@/models/Product'
-import { fetchAllMinifigInventories, minifigToImageUrl } from '@/lib/bricklink'
+import oauthSignature from 'oauth-signature'
 
-type Summary = {
-  scanned: number
-  kept: number
-  upserts: number
-  skipped_stockroom: number
-  skipped_zero_qty: number
+const {
+  BL_KEY,
+  BL_SECRET,
+  BL_TOKEN,
+  BL_TOKEN_SECRET,
+  ADMIN_KEY,
+  MONGODB_DB = 'bricklink',
+} = process.env
+
+function percentEncode(str: string) {
+  return encodeURIComponent(str)
+    .replace(/[!*()']/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+}
+
+function decodeHtml(input?: string | null) {
+  if (!input) return ''
+  return input
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
+
+function safeImage(itemNo?: string | null, imageUrl?: string | null) {
+  const direct = (imageUrl || '').trim()
+  if (direct) return direct
+  const code = (itemNo || '').trim()
+  return code ? `https://img.bricklink.com/ItemImage/MN/0/${code}.png` : null
+}
+
+async function blGet(path: string, query: Record<string, string | number> = {}) {
+  if (!BL_KEY || !BL_SECRET || !BL_TOKEN || !BL_TOKEN_SECRET) {
+    throw new Error('BrickLink API keys missing')
+  }
+
+  const baseUrl = 'https://api.bricklink.com/api/store/v1'
+  const url = `${baseUrl}${path}`
+
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key: BL_KEY,
+    oauth_token: BL_TOKEN,
+    oauth_nonce: Math.random().toString(36).slice(2),
+    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
+    oauth_signature_method: 'HMAC-SHA1',
+    oauth_version: '1.0',
+  }
+
+  const allParams: Record<string, string> = {
+    ...Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])),
+    ...oauthParams,
+  }
+
+  const signature = oauthSignature.generate('GET', url, allParams, BL_SECRET, BL_TOKEN_SECRET)
+  const authHeader = `OAuth oauth_consumer_key="${percentEncode(BL_KEY)}", oauth_token="${percentEncode(
+    BL_TOKEN
+  )}", oauth_signature_method="HMAC-SHA1", oauth_timestamp="${oauthParams.oauth_timestamp}", oauth_nonce="${
+    oauthParams.oauth_nonce
+  }", oauth_version="1.0", oauth_signature="${percentEncode(signature)}"`
+
+  const qs = new URLSearchParams()
+  for (const [k, v] of Object.entries(query)) qs.set(k, String(v))
+
+  const resp = await fetch(`${url}?${qs.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: authHeader, 'Content-Type': 'application/json' },
+  })
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(`BrickLink ${path} ${resp.status}: ${text}`)
+  }
+  return resp.json()
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // quick ping for wiring checks
-  if (req.query.ping === '1') {
-    return res.status(200).json({ ok: true, hello: 'sync endpoint alive' })
-  }
-
   try {
-    const key = req.query.key as string | undefined
-    if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
+    if (req.query.ping) {
+      return res.status(200).json({ ok: true, hello: 'sync endpoint alive' })
+    }
+
+    if (!ADMIN_KEY || String(req.query.key) !== ADMIN_KEY) {
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
     await dbConnect(process.env.MONGODB_URI!)
-    const activeDb = (mongoose.connection as any)?.name as string | undefined
+    mongoose.connection.useDb(MONGODB_DB)
 
-    const required = ['BL_KEY','BL_SECRET','BL_TOKEN','BL_TOKEN_SECRET']
-    for (const k of required) {
-      if (!process.env[k]) return res.status(500).json({ error: `Missing env: ${k}` })
-    }
+    // Pull entire inventory (BrickLink returns paging; pull pages until empty)
+    let page = 1
+    const pageSize = 500
+    let totalUpserted = 0
+    const upsertedItemNos: string[] = []
 
-    const raw = await fetchAllMinifigInventories({
-      BL_KEY: process.env.BL_KEY!,
-      BL_SECRET: process.env.BL_SECRET!,
-      BL_TOKEN: process.env.BL_TOKEN!,
-      BL_TOKEN_SECRET: process.env.BL_TOKEN_SECRET!,
-      BL_USER_ID: process.env.BL_USER_ID,
-    })
+    for (;;) {
+      const data = await blGet('/inventories', { page, page_size: pageSize })
+      const list: any[] = Array.isArray(data?.data) ? data.data : []
+      if (list.length === 0) break
 
-    const summary: Summary = {
-      scanned: raw.length,
-      kept: 0,
-      upserts: 0,
-      skipped_stockroom: 0,
-      skipped_zero_qty: 0,
-    }
+      for (const row of list) {
+        // We only care about minifigs for your storefront; you can broaden later.
+        const type = row?.item?.type || row?.type || row?.item_type || ''
+        if (String(type).toUpperCase() !== 'MINIFIG') continue
 
-    const keepIds: number[] = []
+        const itemNo: string | null = row?.item?.no || row?.item_no || null
+        const nameRaw: string | null = row?.item?.name || row?.name || null
+        const price: number | null =
+          typeof row?.unit_price === 'number' ? row.unit_price :
+          typeof row?.price === 'number' ? row.price : null
+        const qty: number = typeof row?.quantity === 'number' ? row.quantity : 0
+        const condition: string | null =
+          row?.new_or_used || row?.condition || null
 
-    for (const inv of raw) {
-      if (inv.stock_room_id) { summary.skipped_stockroom++; continue }
-      if (!inv.quantity || Number(inv.quantity) <= 0) { summary.skipped_zero_qty++; continue }
+        const name = decodeHtml(nameRaw)
+        const imageUrl = safeImage(itemNo, row?.image_url || row?.imageUrl || null)
 
-      summary.kept++
-      keepIds.push(inv.inventory_id)
+        // Skip stockroom items (A/B/C) => not for sale
+        const stockroom = (row?.stockroom || '').toString().toUpperCase()
+        const isForSale = !['A', 'B', 'C'].includes(stockroom)
 
-      const doc = {
-        itemNo: inv.item?.no,
-        inventoryId: inv.inventory_id,
-        name: inv.item?.name ?? inv.description ?? '',
-        type: 'MINIFIG' as const,
-        condition: inv.new_or_used === 'N' ? 'N' : 'U',
-        remarks: inv.remarks ?? '',
-        language: 'en',
-        price: Number(inv.unit_price) || 0,
-        qty: Number(inv.quantity) || 0,
-        imageUrl: inv.item?.no ? minifigToImageUrl(inv.item.no) : undefined,
+        if (!isForSale) continue
+
+        await Product.updateOne(
+          itemNo ? { itemNo } : { _id: row?._id ?? undefined },
+          {
+            $set: {
+              itemNo: itemNo ?? null,
+              name: name || itemNo || null,
+              imageUrl,
+              price,
+              qty,
+              condition: condition || undefined,
+              type: 'MINIFIG',
+            },
+          },
+          { upsert: true }
+        )
+
+        if (itemNo) upsertedItemNos.push(itemNo)
+        totalUpserted++
       }
 
-      const r = await Product.updateOne(
-        { inventoryId: inv.inventory_id },
-        { $set: doc },
-        { upsert: true }
-      )
-      if ((r.upsertedCount ?? 0) > 0 || (r.modifiedCount ?? 0) > 0) summary.upserts++
+      if (list.length < pageSize) break
+      page++
     }
 
-    if (String(req.query.prune) === '1') {
-      await Product.deleteMany({
+    // Optional prune: remove products of type MINIFIG not returned this run
+    const prune = String(req.query.prune || '') === '1'
+    let pruned = 0
+    if (prune && upsertedItemNos.length) {
+      const r = await Product.deleteMany({
         type: 'MINIFIG',
-        inventoryId: { $nin: keepIds },
+        itemNo: { $nin: upsertedItemNos },
       })
+      pruned = r.deletedCount || 0
     }
 
-    const inStock = await Product.countDocuments({ type: 'MINIFIG', qty: { $gt: 0 } })
-    const allMinifigs = await Product.countDocuments({ type: 'MINIFIG' })
-
-    res.status(200).json({
+    return res.status(200).json({
       ok: true,
-      db: activeDb,
-      collection: process. PAYPAL_CLIENT_SECRET_REDACTED|| 'products',
-      summary,
-      counts: { inStock, allMinifigs },
+      upserted: totalUpserted,
+      pruned,
+      kept: upsertedItemNos.length,
     })
   } catch (err: any) {
-    res.status(500).json({ error: err?.message || 'sync failed' })
+    return res.status(500).json({ error: err?.message || String(err) })
   }
 }
