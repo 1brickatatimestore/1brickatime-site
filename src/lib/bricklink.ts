@@ -1,151 +1,177 @@
-// src/lib/bricklink.ts
-import crypto from 'crypto'
+mkdir -p src/lib
+cat > src/lib/bricklink.ts <<'TS'
+import crypto from "crypto";
 
-type BLKeys = {
-  key: string
-  secret: string
-  token: string
-  tokenSecret: string
-  userId?: string
+/**
+ * Minimal OAuth 1.0a signer for BrickLink Store API using HMAC-SHA1.
+ * Works with either BL_* or BRICKLINK_* env var names.
+ */
+function getEnv(name: string, fallback?: string) {
+  return (
+    process.env[name] ||
+    process.env["BL_" + name] ||
+    process.env["BRICKLINK_" + name] ||
+    fallback ||
+    ""
+  );
 }
 
-function requireEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`Missing env: ${name}`)
-  return v
+const CONSUMER_KEY     = getEnv("CONSUMER_KEY");
+const CONSUMER_SECRET  = getEnv("CONSUMER_SECRET");
+const OAUTH_TOKEN      = getEnv("OAUTH_TOKEN");
+const OAUTH_TOKEN_SECRET = getEnv("OAUTH_TOKEN_SECRET");
+
+if (!CONSUMER_KEY || !CONSUMER_SECRET || !OAUTH_TOKEN || !OAUTH_TOKEN_SECRET) {
+  // We won't throw here; api route will surface a clear error message.
 }
 
-export function getBLKeys(): BLKeys {
-  return {
-    key: process.env.BL_KEY || process.env.BRICKLINK_KEY || requireEnv('BL_KEY'),
-    secret: process.env.BL_SECRET || process.env.BRICKLINK_SECRET || requireEnv('BL_SECRET'),
-    token: process.env.BL_TOKEN || process.env.BRICKLINK_TOKEN || requireEnv('BL_TOKEN'),
-    tokenSecret:
-      process.env.BL_TOKEN_SECRET ||
-      process. PAYPAL_CLIENT_SECRET_REDACTED||
-      requireEnv('BL_TOKEN_SECRET'),
-    userId: process.env.BL_USER_ID || process.env.BRICKLINK_USER_ID,
-  }
-}
-
-/** RFC3986 percent-encode (OAuth requires this, not encodeURIComponent exactly) */
-function rfc3986(str: string) {
+function percentEncode(str: string) {
   return encodeURIComponent(str)
-    .replace(/[!'()*]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+    .replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-/** Build OAuth 1.0a signature (HMAC-SHA1) without external libs */
-function buildOAuthSignature(
-  method: 'GET' | 'POST',
-  url: string,
-  allParams: Record<string, any>,
-  consumerSecret: string,
-  tokenSecret: string
-) {
-  // 1) Normalize params (key=value), sorted by key then value
-  const pairs: string[] = []
-  Object.keys(allParams)
-    .sort()
-    .forEach((k) => {
-      const v = allParams[k]
-      if (v === undefined || v === null) return
-      pairs.push(`${rfc3986(k)}=${rfc3986(String(v))}`)
-    })
-  const paramString = pairs.join('&')
-
-  // 2) Base string
-  const baseString = [method.toUpperCase(), rfc3986(url), rfc3986(paramString)].join('&')
-
-  // 3) Signing key
-  const signingKey = `${rfc3986(consumerSecret)}&${rfc3986(tokenSecret)}`
-
-  // 4) HMAC-SHA1 -> base64
-  return crypto.createHmac('sha1', signingKey).update(baseString).digest('base64')
-}
-
-function nonce() {
-  return crypto.randomBytes(16).toString('hex')
-}
-
-async function blGet(path: string, query: Record<string, any> = {}) {
-  const { key, secret, token, tokenSecret } = getBLKeys()
-  const baseUrl = 'https://api.bricklink.com/api/store/v1'
-  const url = `${baseUrl}${path}`
-
-  const oauthParams: Record<string, string> = {
-    oauth_consumer_key: key,
-    oauth_token: token,
-    oauth_nonce: nonce(),
+function buildAuthHeader(method: string, url: string, extraParams: Record<string,string|number> = {}) {
+  const oauthParams: Record<string,string> = {
+    oauth_consumer_key: CONSUMER_KEY,
+    oauth_token: OAUTH_TOKEN,
+    oauth_signature_method: "HMAC-SHA1",
     oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_version: '1.0',
-  }
+    oauth_nonce: crypto.randomBytes(16).toString("hex"),
+    oauth_version: "1.0",
+  };
 
-  const allParams = { ...query, ...oauthParams }
-  const signature = buildOAuthSignature('GET', url, allParams, secret, tokenSecret)
-  oauthParams.oauth_signature = signature
+  const allParams: Record<string,string> = {
+    ...Object.fromEntries(
+      Object.entries(extraParams).map(([k,v]) => [k, String(v)])
+    ),
+    ...oauthParams,
+  };
 
-  const authHeader =
-    'OAuth ' +
-    Object.keys(oauthParams)
-      .sort()
-      .map((k) => `${rfc3986(k)}="${rfc3986(oauthParams[k])}"`)
-      .join(', ')
+  // Normalize params
+  const paramString = Object.keys(allParams)
+    .sort()
+    .map((k) => `${percentEncode(k)}=${percentEncode(allParams[k])}`)
+    .join("&");
 
-  const qs = new URLSearchParams()
-  for (const [k, v] of Object.entries(query)) {
-    if (v !== undefined && v !== null) qs.append(k, String(v))
-  }
-  const fullUrl = qs.toString() ? `${url}?${qs.toString()}` : url
+  const baseString = [
+    method.toUpperCase(),
+    percentEncode(url.split("?")[0]),
+    percentEncode(paramString),
+  ].join("&");
 
-  // Next.js runtime already provides fetch (Node 18+)
-  const resp = await fetch(fullUrl, {
-    method: 'GET',
-    headers: {
-      Authorization: authHeader,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-  })
+  const signingKey = `${percentEncode(CONSUMER_SECRET)}&${percentEncode(OAUTH_TOKEN_SECRET)}`;
+  const signature = crypto.createHmac("sha1", signingKey).update(baseString).digest("base64");
+  const oauthHeader = {
+    ...oauthParams,
+    oauth_signature: signature,
+  };
 
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '')
-    throw new Error(`BrickLink GET ${path} failed: ${resp.status} ${resp.statusText} ${txt}`)
-  }
-  return resp.json()
+  const header = "OAuth " + Object.keys(oauthHeader)
+    .sort()
+    .map((k) => `${percentEncode(k)}="${percentEncode(oauthHeader[k])}"`)
+    .join(", ");
+
+  return header;
 }
 
-/** Basic HTML entity decode for names coming from BL */
-export function decodeEntities(s?: string): string {
-  if (!s) return ''
-  return s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-}
+/**
+ * Call BrickLink Store API.
+ * Docs: https://www.bricklink.com/v3/api.page?page=store-api
+ */
+async function blFetch<T>(path: string, query: Record<string, string | number> = {}) {
+  const base = "https://api.bricklink.com/api/store/v1";
+  const qs = new URLSearchParams();
+  for (const [k,v] of Object.entries(query)) qs.set(k, String(v));
+  const url = `${base}${path}${qs.toString() ? `?${qs.toString()}` : ""}`;
 
-/** Compute a BrickLink CDN image URL when BL didn’t provide one */
-export function computeImageUrl(itemNo?: string, type?: string | null): string | null {
-  if (!itemNo) return null
-  const folder = type === 'MINIFIG' ? 'MN' : 'MN'
-  return `https://img.bricklink.com/ItemImage/${folder}/0/${encodeURIComponent(itemNo)}.png`
-}
+  const auth = buildAuthHeader("GET", url, query);
+  const res = await fetch(url, { headers: { Authorization: auth } });
 
-/** Fetch your entire store inventory (paginates 500 at a time) */
-export async function fetchInventoryAll() {
-  const out: any[] = []
-  let offset = 0
-  const limit = 500
-
-  while (true) {
-    const data = await blGet('/inventories', { limit, offset })
-    const arr = data?.data ?? []
-    out.push(...arr)
-    if (arr.length < limit) break
-    offset += limit
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`BrickLink ${res.status} ${res.statusText}: ${text || url}`);
   }
-  return out
+  const data = await res.json();
+  return data as T;
 }
+
+type BLInventoryItem = {
+  inventory_id: number;
+  item: {
+    no: string;           // e.g. "jw038"
+    name?: string;        // may be missing in some responses
+    type: string;         // "MINIFIG"
+  };
+  color_id?: number;      // not used for minifigs
+  quantity: number;
+  new_or_used: "N" | "U";
+  unit_price: number;
+  remarks?: string;
+  comments?: string;
+  reserved_qty?: number;
+  stock_room?: "Y" | "N"; // "Y" => stockroom (NOT for sale)
+  status?: "A" | "I";     // A active, I inactive
+};
+
+type BLResponse<T> = { meta: { code: number; description: string }; data: T };
+
+/**
+ * Fetch ONLY items AVAILABLE FOR SALE (not stockroom), type MINIFIG.
+ * BrickLink "inventories" endpoint returns your store inventory.
+ */
+export async function fetchMinifigsPage(page = 1, limit = 36) {
+  // BrickLink uses page/page_size in some endpoints. We’ll use a safe
+  // approach: request page/limit; if unsupported, fetch more and slice.
+  const page_size = Math.min(Math.max(limit, 1), 200);
+
+  // Query we’ll try:
+  // - item_type=MINIFIG (minifigs)
+  // - status=Y (for sale)
+  // - stock_room=N (exclude stockroom)
+  const query = {
+    item_type: "MINIFIG",
+    status: "Y",
+    stock_room: "N",
+    page,
+    page_size,
+  } as Record<string,string|number>;
+
+  // Main attempt
+  try {
+    const r = await blFetch<BLResponse<BLInventoryItem[]>>("/inventories", query);
+    const rows = Array.isArray(r?.data) ? r.data : [];
+
+    // Derive friendly fields
+    const items = rows.map((d) => {
+      const itemNo = d?.item?.no || "";
+      const name = d?.item?.name || ""; // often missing — OK
+      const imageUrl = itemNo ? `https://img.bricklink.com/ItemImage/MN/0/${encodeURIComponent(itemNo)}.png` : "";
+      return {
+        id: String(d.inventory_id),
+        itemNo,
+        name,
+        price: Number(d.unit_price || 0),
+        stock: Math.max(0, Number(d.quantity || 0) - Number(d.reserved_qty || 0)),
+        imageUrl,
+        remarks: d.remarks || d.comments || "",
+        condition: d.new_or_used === "N" ? "New" : "Used",
+        theme: "",       // taxonomy step can fill later
+        collection: "",
+        series: "",
+      };
+    });
+
+    return {
+      items,
+      meta: {
+        totalLots: items.length, // BrickLink doesn’t return totals here; this is page size
+        page,
+        pageSize: limit,
+      },
+    };
+  } catch (err) {
+    // Surface error to caller; they may choose a fallback.
+    throw err;
+  }
+}
+TS

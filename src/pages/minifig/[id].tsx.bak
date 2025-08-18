@@ -69,7 +69,7 @@ export default function MinifigDetail({ p }: { p: Item }) {
               {disabled ? "Sold out" : "Add to cart"}
             </button>
           </div>
-          {p.stock > 0 && <div className="stock">Only available: {left} left</div>}
+          {p.stock > 0 && <div className="stock">In stock: {left} left</div>}
         </div>
       </article>
 

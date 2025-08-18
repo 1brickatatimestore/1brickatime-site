@@ -1,0 +1,242 @@
+// src/pages/minifigs.tsx
+import Head from "next/head";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+type Item = {
+  id: string;
+  itemNo: string;
+  name: string;
+  price: number;
+  stock: number;
+  imageUrl?: string | null;
+  remarks?: string;
+  condition?: string;
+  theme?: string;
+  collection?: string;
+  series?: string;
+};
+type ApiResponse = {
+  items: Item[];
+  meta: { total: number; page: number; pageSize: number };
+};
+
+function currency(n: number) {
+  const sym = process. PAYPAL_CLIENT_SECRET_REDACTED=== "AUD" ? "AU$" : "$";
+  return `${sym}${n.toFixed(2)}`;
+}
+
+export default function MinifigsPage() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(36);
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState<"name_asc" | "name_desc" | "price_asc" | "price_desc">("name_asc");
+  const [loading, setLoading] = useState(false);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(total / pageSize)),
+    [total, pageSize]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function go() {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("limit", String(pageSize));
+        params.set("sort", sort);
+        params.set("inStock", "1"); // show only available-for-sale
+        if (q.trim()) params.set("q", q.trim());
+
+        const res = await fetch(`/api/minifigs-basic?${params.toString()}`);
+        const data: ApiResponse = await res.json();
+        if (!cancelled) {
+          setItems(data.items || []);
+          setTotal(data.meta?.total || 0);
+        }
+      } catch {
+        if (!cancelled) {
+          setItems([]);
+          setTotal(0);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    go();
+    return () => { cancelled = true; };
+  }, [page, pageSize, sort, q]);
+
+  return (
+    <>
+      <Head>
+        <title>Minifigures — 1 Brick at a Time</title>
+      </Head>
+
+      <main className="wrap">
+        <header className="head">
+          <h1>Minifigures</h1>
+          <div className="meta">
+            Available: <strong>{total.toLocaleString()}</strong> lots •{" "}
+            <span>Page {page}/{totalPages}</span>
+          </div>
+        </header>
+
+        <form
+          className="toolbar"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPage(1);
+          }}
+        >
+          <input
+            className="search"
+            placeholder="Search name or number…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as any);
+              setPage(1);
+            }}
+          >
+            <option value="name_asc">Name A–Z</option>
+            <option value="name_desc">Name Z–A</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+          </select>
+          <button className="btn" type="submit">Apply</button>
+        </form>
+
+        {loading && items.length === 0 ? (
+          <p className="muted">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="muted">No items found.</p>
+        ) : (
+          <section className="grid">
+            {items.map((it) => (
+              <article className="card" key={it.id || it.itemNo}>
+                <Link href={`/minifig/${encodeURIComponent(it.itemNo)}`} className="pic">
+                  {/* use plain img to avoid next/image config headaches */}
+                  <img src={it.imageUrl || "/placeholder.png"} alt="" />
+                </Link>
+                <div className="body">
+                  <h3 className="title">
+                    <Link href={`/minifig/${encodeURIComponent(it.itemNo)}`}>
+                      {it.name}
+                    </Link>
+                  </h3>
+                  <div className="price">{currency(it.price)}</div>
+                  <div className="stock">
+                    {it.stock > 0 ? "In stock" : "Sold out"}
+                  </div>
+                </div>
+                <div className="actions">
+                  <button
+                    className="btn primary"
+                    disabled={it.stock <= 0}
+                    onClick={() => {
+                      try {
+                        const raw = localStorage.getItem("cart");
+                        const current = raw ? JSON.parse(raw) : { items: [] as any[] };
+                        const existing = current.items.find((x: any) => x.id === it.itemNo);
+                        if (existing) existing.qty += 1;
+                        else current.items.push({
+                          id: it.itemNo,
+                          name: it.name,
+                          price: it.price,
+                          qty: 1,
+                          imageUrl: it.imageUrl || null,
+                        });
+                        localStorage.setItem("cart", JSON.stringify(current));
+                        alert("Added to cart");
+                      } catch {
+                        alert("Could not add to cart");
+                      }
+                    }}
+                  >
+                    {it.stock > 0 ? "Add to cart" : "Sold out"}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
+
+        <footer className="pager">
+          <button
+            className="btn"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            ← Prev
+          </button>
+          <span className="muted">
+            Page {page} / {totalPages}
+          </span>
+          <button
+            className="btn"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next →
+          </button>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(parseInt(e.target.value, 10));
+              setPage(1);
+            }}
+          >
+            <option value={24}>24</option>
+            <option value={36}>36</option>
+            <option value={48}>48</option>
+          </select>
+        </footer>
+      </main>
+
+      <style jsx>{`
+        .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .head { display: flex; justify-content: space-between; align-items: end; }
+        h1 { margin: 0 0 10px; }
+        .meta { color: #555; }
+        .toolbar {
+          display: grid;
+          grid-template-columns: 1fr 160px 120px;
+          gap: 10px;
+          margin: 14px 0 18px;
+        }
+        .search {
+          border: 1px solid #ddd; border-radius: 10px; padding: 10px 12px; font: inherit;
+        }
+        .btn { height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid #c9c9c9; background: #fafafa; }
+        .btn.primary { border-color: #caa21a; background: #f0c642; font-weight: 600; }
+        .muted { color: #666; }
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+        @media (max-width: 1100px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 780px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+        .card {
+          background: #fff; border-radius: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.06);
+          display: grid; grid-template-rows: auto 1fr auto;
+        }
+        .pic { display: block; padding: 18px 18px 0; }
+        .pic img { width: 100%; height: 220px; object-fit: contain; background: #f7f7f7; border-radius: 10px; }
+        .body { padding: 10px 14px; }
+        .title { margin: 0 0 6px; font-size: 15px; line-height: 1.25; }
+        .price { font-weight: 700; margin-top: 4px; }
+        .stock { color: #2a7a2a; font-size: 12px; }
+        .actions { padding: 12px 14px 14px; }
+      `}</style>
+    </>
+  );
+}

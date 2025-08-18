@@ -1,70 +1,177 @@
 // src/components/MinifigCard.tsx
-import Link from 'next/link'
+import Link from "next/link";
+import { useCart } from "@/context/CartContext";
 
-type P = {
-  _id?: string
-  itemNo?: string
-  name?: string
-  price?: number
-  qty?: number
-  imageUrl?: string | null
-}
+export type MinifigUi = {
+  id: string;
+  itemNo: string;
+  name: string;
+  price: number;
+  stock: number;
+  imageUrl?: string;
+  condition?: string; // "New" | "Used"
+  remarks?: string;
+};
 
-function imgFor(p: P): string {
-  // If the DB already has a URL, use it.
-  if (p.imageUrl && p.imageUrl.trim()) return p.imageUrl.trim()
-  // Fallback for minifigs: BrickLink’s standard image path.
-  // Example: https://img.bricklink.com/ItemImage/MN/0/sw0257a.png
-  const code = (p.itemNo || '').trim()
-  if (!code) return '/no-image.png' // absolute last resort (never used if code exists)
-  return `https://img.bricklink.com/ItemImage/MN/0/${code}.png`
-}
-
-export default function MinifigCard({ p }: { p: P }) {
-  const href = `/minifig/${p.itemNo || p._id}`
-  const img = imgFor(p)
+export default function MinifigCard({ item }: { item: MinifigUi }) {
+  const { add, getQty } = useCart();
+  const inCart = getQty(item.id || item.itemNo);
+  const left = Math.max(0, (item.stock || 0) - inCart);
+  const disabled = left <= 0;
 
   return (
-    <div className="card">
-      <Link href={href} className="imgLink" aria-label={p.name || p.itemNo || 'Minifig'}>
-        {/* using <img> keeps it simple and fast here */}
-        <img src={img} alt={p.name || p.itemNo || 'Minifig'} width={360} height={360} />
+    <article className="card">
+      <Link href={`/minifig/${encodeURIComponent(item.itemNo)}`} className="imgWrap">
+        {item.imageUrl ? (
+          // Use plain <img> to avoid Next/Image config and keep it crisp
+          <img
+            src={item.imageUrl}
+            alt=""
+            className="img"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="noimg">No image</div>
+        )}
       </Link>
 
-      <div className="cardBody">
-        <h3>
-          <Link href={href}>{p.name || p.itemNo || 'Minifig'}</Link>
-        </h3>
+      <div className="meta">
+        <Link href={`/minifig/${encodeURIComponent(item.itemNo)}`} className="name">
+          {item.name || item.itemNo}
+        </Link>
 
-        <div className="meta">
-          {typeof p.price === 'number' ? (
-            <span className="price">
-              {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(p.price)}
-            </span>
-          ) : <span className="price">—</span>}
-
-          {typeof p.qty === 'number' && p.qty > 0 ? (
-            <span className="stock ok">{p.qty} in stock</span>
-          ) : (
-            <span className="stock out">Sold out</span>
-          )}
+        <div className="sub">
+          <span className="price">
+            {Number.isFinite(item.price) ? `$${item.price.toFixed(2)}` : "—"}
+          </span>
+          <span className={`stock ${left > 0 ? "ok" : "out"}`}>
+            {left > 0 ? `${left} left` : "Sold out"}
+          </span>
         </div>
 
-        <button className="btn" type="button">Add to cart</button>
+        {/* Optional condition + remarks from BrickLink */}
+        {(item.condition || item.remarks) && (
+          <div className="extra">
+            {item.condition && <span className="pill">{item.condition}</span>}
+            {item.remarks && <span className="remarks" title={item.remarks}>{item.remarks}</span>}
+          </div>
+        )}
+
+        <button
+          className="addBtn"
+          disabled={disabled}
+          onClick={() =>
+            add({
+              id: item.id || item.itemNo,
+              name: item.name || item.itemNo || "Minifig",
+              price: Number(item.price ?? 0),
+              qty: 1,
+              imageUrl: item.imageUrl,
+            })
+          }
+        >
+          {disabled ? "Sold out" : "Add to cart"}
+        </button>
       </div>
 
       <style jsx>{`
-        .card { background:#fff; border-radius:12px; padding:12px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
-        .imgLink { display:block; border-radius:10px; background:#f4f4f4; overflow:hidden; text-align:center; }
-        .imgLink img { width:100%; height:auto; display:block; }
-        .cardBody { padding:10px 4px 2px; }
-        h3 { margin:0 0 6px; font-size:15px; line-height:1.25; }
-        .meta { display:flex; gap:10px; align-items:center; margin:6px 0 10px; }
-        .price { font-weight:700; }
-        .stock.ok { color:#1a7f37; }
-        .stock.out { color:#8a8a8a; }
-        .btn { background:#e1b946; border:2px solid #a2801a; padding:8px 12px; border-radius:8px; font-weight:700; }
+        .card {
+          background: #fff;
+          border-radius: 12px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+          overflow: hidden;
+          display: grid;
+          grid-template-rows: auto 1fr;
+        }
+        .imgWrap {
+          display: block;
+          background: #f6f6f6;
+          height: 180px;
+          overflow: hidden;
+        }
+        .img {
+          width: 100%;
+          height: 180px;
+          object-fit: contain;
+          image-rendering: auto; /* crisp without pixelation */
+        }
+        .noimg {
+          height: 180px;
+          display: grid;
+          place-items: center;
+          color: #999;
+          font-size: 12px;
+        }
+        .meta {
+          padding: 10px;
+          display: grid;
+          gap: 6px;
+        }
+        .name {
+          font-weight: 600;
+          line-height: 1.2;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-decoration: none;
+          color: #222;
+        }
+        .sub {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          gap: 8px;
+          font-size: 14px;
+        }
+        .price {
+          font-weight: 700;
+        }
+        .stock.ok {
+          color: #1a7f37;
+          font-weight: 600;
+        }
+        .stock.out {
+          color: #a40000;
+          font-weight: 600;
+        }
+        .extra {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          min-height: 18px;
+        }
+        .pill {
+          display: inline-block;
+          padding: 2px 8px;
+          border-radius: 999px;
+          border: 1px solid #ddd;
+          font-size: 12px;
+          color: #333;
+          background: #fafafa;
+        }
+        .remarks {
+          font-size: 12px;
+          color: #555;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .addBtn {
+          height: 36px;
+          border-radius: 10px;
+          border: 1px solid #c9c9c9;
+          background: #f6f6f6;
+          font-weight: 600;
+        }
+        .addBtn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
       `}</style>
-    </div>
-  )
+    </article>
+  );
 }

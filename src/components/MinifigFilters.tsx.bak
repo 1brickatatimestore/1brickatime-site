@@ -39,7 +39,7 @@ export default function MinifigFilters({ facets, defaults }: Props) {
       </label>
 
       <label style={{ display: "grid", gap: 6 }}>
-        <span>Only available</span>
+        <span>In stock</span>
         <select value={inStock} onChange={(e) => { setInStock(e.target.value); push({ inStock: e.target.value }); }}>
           <option value="1">Only in stock</option>
           <option value="0">Include out of stock</option>
