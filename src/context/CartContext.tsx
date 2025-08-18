@@ -1,94 +1,71 @@
-import { createContext, useContext, useMemo, useReducer, useEffect, ReactNode } from 'react'
+// src/context/CartContext.tsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type CartItem = {
-  id: string
-  name: string
-  price: number
-  qty: number
-  imageUrl?: string | null
-}
+  id: string;            // _id or itemNo
+  name: string;
+  price: number;         // per unit
+  qty: number;
+  imageUrl?: string | null;
+  stock?: number;        // optional (for UI guards)
+};
 
-type State = { items: CartItem[] }
-type Action =
-  | { type: 'ADD'; item: CartItem }
-  | { type: 'INC'; id: string }
-  | { type: 'DEC'; id: string }
-  | { type: 'REMOVE'; id: string }
-  | { type: 'CLEAR' }
-  | { type: 'SET'; items: CartItem[] }
+type CartState = {
+  items: CartItem[];
+  add: (item: CartItem) => void;
+  remove: (id: string) => void;
+  updateQty: (id: string, qty: number) => void;
+  clear: () => void;
+  getQty: (id: string) => number;
+  subtotal: number;
+  count: number;
+};
 
-const Ctx = createContext<{
-  items: CartItem[]
-  add: (item: CartItem) => void
-  inc: (id: string) => void
-  dec: (id: string) => void
-  remove: (id: string) => void
-  clear: () => void
-  subtotal: number
-}>({ items: [], add: () => {}, inc: () => {}, dec: () => {}, remove: () => {}, clear: () => {}, subtotal: 0 })
+const Ctx = createContext<CartState | undefined>(undefined);
 
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case 'SET':
-      return { items: action.items }
-    case 'ADD': {
-      const i = state.items.findIndex(x => x.id === action.item.id)
-      if (i >= 0) {
-        const copy = state.items.slice()
-        copy[i] = { ...copy[i], qty: copy[i].qty + action.item.qty }
-        return { items: copy }
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<CartItem[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cart_v1");
+      if (raw) setItems(JSON.parse(raw));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("cart_v1", JSON.stringify(items)); } catch {}
+  }, [items]);
+
+  const add: CartState["add"] = (it) => {
+    setItems(prev => {
+      const idx = prev.findIndex(p => p.id === it.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        const current = next[idx];
+        const desired = current.qty + it.qty;
+        const cap = typeof it.stock === "number" ? Math.max(0, Math.min(desired, it.stock)) : desired;
+        next[idx] = { ...current, qty: cap };
+        return next;
       }
-      return { items: [...state.items, action.item] }
-    }
-    case 'INC':
-      return { items: state.items.map(x => x.id === action.id ? { ...x, qty: x.qty + 1 } : x) }
-    case 'DEC':
-      return { items: state.items.map(x => x.id === action.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x) }
-    case 'REMOVE':
-      return { items: state.items.filter(x => x.id !== action.id) }
-    case 'CLEAR':
-      return { items: [] }
-    default:
-      return state
-  }
-}
+      const cap = typeof it.stock === "number" ? Math.max(0, Math.min(it.qty, it.stock)) : it.qty;
+      return [...prev, { ...it, qty: cap }];
+    });
+  };
+  const remove = (id: string) => setItems(prev => prev.filter(p => p.id !== id));
+  const updateQty = (id: string, qty: number) =>
+    setItems(prev => prev.map(p => (p.id === id ? { ...p, qty: Math.max(0, qty) } : p)));
+  const clear = () => setItems([]);
+  const getQty = (id: string) => items.find(p => p.id === id)?.qty ?? 0;
 
-export function CartProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, { items: [] })
+  const subtotal = useMemo(() => items.reduce((s, it) => s + it.price * it.qty, 0), [items]);
+  const count = useMemo(() => items.reduce((s, it) => s + it.qty, 0), [items]);
 
-  // hydrate from localStorage once
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('cart.v1')
-      if (raw) dispatch({ type: 'SET', items: JSON.parse(raw) })
-    } catch {}
-  }, [])
-
-  // persist
-  useEffect(() => {
-    try {
-      localStorage.setItem('cart.v1', JSON.stringify(state.items))
-    } catch {}
-  }, [state.items])
-
-  const subtotal = useMemo(
-    () => state.items.reduce((sum, x) => sum + (Number(x.price) || 0) * (Number(x.qty) || 0), 0),
-    [state.items]
-  )
-
-  const api = useMemo(() => ({
-    items: state.items,
-    add: (item: CartItem) => dispatch({ type: 'ADD', item }),
-    inc: (id: string) => dispatch({ type: 'INC', id }),
-    dec: (id: string) => dispatch({ type: 'DEC', id }),
-    remove: (id: string) => dispatch({ type: 'REMOVE', id }),
-    clear: () => dispatch({ type: 'CLEAR' }),
-    subtotal
-  }), [state.items, subtotal])
-
-  return <Ctx.Provider value={api}>{children}</Ctx.Provider>
+  const value = { items, add, remove, updateQty, clear, getQty, subtotal, count };
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useCart() {
-  return useContext(Ctx)
+  const v = useContext(Ctx);
+  if (!v) throw new Error("useCart must be used within CartProvider");
+  return v;
 }

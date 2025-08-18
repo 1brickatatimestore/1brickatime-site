@@ -1,255 +1,200 @@
 // src/pages/minifigs-by-theme.tsx
-import Head from 'next/head'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useRouter } from 'next/router'
-import { useMemo } from 'react'
-import { useCart } from '@/context/CartContext'
+import Head from "next/head";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { useMemo } from "react";
+import { useCart } from "@/context/CartContext";
 
 type Item = {
-  _id?: string
-  inventoryId?: number
-  name?: string
-  itemNo?: string
-  price?: number
-  condition?: string
-  imageUrl?: string | null
-  qty?: number | null
-  type?: string | null
-}
+  _id: string;
+  id: string;
+  itemNo: string;
+  name: string;
+  remarks?: string;
+  inventoryId?: number;
+  price: number;
+  priceCents: number;
+  imageUrl?: string | null;
+  stock: number;
+  theme?: string;
+  collection?: string;
+  series?: string;
+  condition?: string;
+};
 
-type ThemeOpt = { key: string; label: string; count: number }
-
+type FacetRow = { theme?: string; collection?: string; series?: string; count: number };
 type Props = {
-  items: Item[]
-  count: number
-  page: number
-  limit: number
-  q: string
-  cond: string
-  minPrice?: string
-  maxPrice?: string
-  sort?: string
-  theme: string
-  themeOptions: ThemeOpt[]
-}
+  items: Item[];
+  meta: { total: number; page: number; limit: number };
+  facets: { themes: FacetRow[]; collections: FacetRow[]; series: FacetRow[] };
+  queryDefaults: Record<string, string>;
+};
 
-function decodeHtml(input?: string | null) {
-  if (!input) return ''
-  return input
-    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)))
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-}
+export default function MinifigsByThemePage({ items, meta, facets, queryDefaults }: Props) {
+  const router = useRouter();
+  const { add, getQty } = useCart();
 
-function imgFor(p: Item) {
-  const direct = (p.imageUrl || '').trim()
-  if (direct) return direct
-  const code = (p.itemNo || '').trim()
-  return code ? `https://img.bricklink.com/ItemImage/MN/0/${code}.png` : ''
-}
+  const pages = Math.max(1, Math.ceil((meta?.total ?? 0) / Math.max(1, meta?.limit ?? 36)));
+  const hasItems = items && items.length > 0;
 
-export default function MinifigsByThemePage({
-  items, count, page, limit, q, cond, minPrice = '', maxPrice = '', sort = 'name_asc',
-  theme, themeOptions
-}: Props) {
-  const router = useRouter()
-  const { add } = useCart()
-
-  const pages = Math.max(1, Math.ceil(count / Math.max(1, limit)))
-  const hasItems = Array.isArray(items) && items.length > 0
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const theme = String(fd.get('theme') || '')
-    const q = String(fd.get('q') || '').trim()
-    const cond = String(fd.get('cond') || '')
-    const minP = String(fd.get('minPrice') || '').trim()
-    const maxP = String(fd.get('maxPrice') || '').trim()
-    const sort = String(fd.get('sort') || 'name_asc')
-
-    const p = new URLSearchParams()
-    p.set('page', '1')
-    p.set('limit', String(limit))
-    if (theme) p.set('theme', theme)
-    if (q) p.set('q', q)
-    if (cond) p.set('cond', cond)
-    if (minP) p.set('minPrice', minP)
-    if (maxP) p.set('maxPrice', maxP)
-    if (sort) p.set('sort', sort)
-    router.push(`/minifigs-by-theme?${p.toString()}`)
+  function push(params: Record<string, string | number | undefined>) {
+    const merged = { ...router.query, ...params, page: 1 };
+    Object.keys(merged).forEach((k) => {
+      if (merged[k] === "" || merged[k] == null) delete (merged as any)[k];
+    });
+    router.push({ pathname: router.pathname, query: merged }, undefined, { shallow: false });
   }
 
   const buildHref = (nextPage: number) => {
-    const p = new URLSearchParams()
-    p.set('page', String(nextPage))
-    p.set('limit', String(limit))
-    if (theme) p.set('theme', theme)
-    if (q) p.set('q', q)
-    if (cond) p.set('cond', cond)
-    if (minPrice) p.set('minPrice', minPrice)
-    if (maxPrice) p.set('maxPrice', maxPrice)
-    if (sort) p.set('sort', sort)
-    return `/minifigs-by-theme?${p.toString()}`
-  }
+    const p = new URLSearchParams();
+    const q = router.query as Record<string, string>;
+    p.set("page", String(nextPage));
+    p.set("limit", String(meta?.limit ?? 36));
+    ["q", "inStock", "theme", "collection", "series", "sort"].forEach((k) => {
+      if (q[k]) p.set(k, String(q[k]));
+    });
+    return `/minifigs-by-theme?${p.toString()}`;
+  };
 
-  const labelMap = useMemo(
-    () => Object.fromEntries(themeOptions.map(t => [t.key, t.label])),
-    [themeOptions]
-  )
+  const themes = useMemo(() => facets.themes?.map(t => ({ label: t.theme!, count: t.count })) ?? [], [facets]);
+  const collections = useMemo(() => facets.collections?.map(t => ({ label: t.collection!, count: t.count })) ?? [], [facets]);
+  const series = useMemo(() => facets.series?.map(t => ({ label: t.series!, count: t.count })) ?? [], [facets]);
+
+  const qObj = router.query as Record<string, string>;
+  const sort = qObj.sort ?? "name";
+  const inStock = qObj.inStock ?? "1";
 
   return (
     <>
-      <Head>
-        <title>Minifigs by Theme — 1 Brick at a Time</title>
-      </Head>
+      <Head><title>Minifigures — 1 Brick at a Time</title></Head>
 
-      <main className="wrap">
-        <form className="filters" onSubmit={onSubmit}>
-          <select name="theme" defaultValue={theme || ''} className="select">
-            <option value="">All themes</option>
-            {themeOptions.map(t => (
-              <option key={t.key} value={t.key}>
-                {t.label} ({t.count})
-              </option>
-            ))}
-          </select>
+      <form className="filters" onSubmit={(e) => { e.preventDefault(); }}>
+        <input
+          defaultValue={qObj.q ?? ""}
+          placeholder="Search name or number…"
+          className="text"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              const val = (e.currentTarget as HTMLInputElement).value;
+              push({ q: val });
+            }
+          }}
+        />
 
-          <input name="q" defaultValue={q} placeholder="Search name or number…" className="text" />
+        <select defaultValue={inStock} className="select" onChange={(e) => push({ inStock: e.target.value })}>
+          <option value="1">Only in stock</option>
+          <option value="0">Include out of stock</option>
+        </select>
 
-          <select name="cond" defaultValue={cond} className="select">
-            <option value="">Any condition</option>
-            <option value="N">New</option>
-            <option value="U">Used</option>
-          </select>
+        <select defaultValue={qObj.collection ?? ""} className="select"
+                onChange={(e) => push({ collection: e.target.value, series: "" })}>
+          <option value="">All collections</option>
+          {collections.map(({ label, count }) => (
+            <option key={label} value={label}>{label} ({count})</option>
+          ))}
+        </select>
 
-          <input
-            name="minPrice"
-            defaultValue={minPrice}
-            inputMode="decimal"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="Min $"
-            className="num"
-          />
-          <input
-            name="maxPrice"
-            defaultValue={maxPrice}
-            inputMode="decimal"
-            type="number"
-            step="0.01"
-            min="0"
-            placeholder="Max $"
-            className="num"
-          />
+        <select defaultValue={qObj.series ?? ""} className="select"
+                onChange={(e) => push({ series: e.target.value })}
+                disabled={(qObj.collection ?? "") !== "Collectible Minifigures"}>
+          <option value="">All series</option>
+          {series.map(({ label, count }) => (
+            <option key={label} value={label}>{label} ({count})</option>
+          ))}
+        </select>
 
-          <select name="sort" defaultValue={sort} className="select">
-            <option value="name_asc">Name A–Z</option>
-            <option value="name_desc">Name Z–A</option>
-            <option value="price_asc">Price low→high</option>
-            <option value="price_desc">Price high→low</option>
-          </select>
+        <select defaultValue={qObj.theme ?? ""} className="select" onChange={(e) => push({ theme: e.target.value })}>
+          <option value="">All themes</option>
+          {themes.map(({ label, count }) => (
+            <option key={label} value={label}>{label} ({count})</option>
+          ))}
+        </select>
 
-          <button type="submit" className="btnPrimary">Apply</button>
-          <Link className="btnGhost" href="/minifigs-by-theme">Clear</Link>
+        <select defaultValue={sort} className="select" onChange={(e) => push({ sort: e.target.value })}>
+          <option value="name">Name A–Z</option>
+          <option value="newest">Newest</option>
+          <option value="price-asc">Price ↑</option>
+          <option value="price-desc">Price ↓</option>
+        </select>
+      </form>
 
-          <span className="meta">
-            {theme ? (labelMap[theme] || theme) : 'All themes'} • {count} items • Page {page}/{pages}
-          </span>
-        </form>
-
-        {hasItems ? (
-          <>
-            <div className="grid">
-              {items.map((p) => {
-                const href = `/minifig/${encodeURIComponent(p.itemNo || p._id || String(p.inventoryId || ''))}`
-                const name = decodeHtml(p.name) || p.itemNo || 'Minifig'
-                const img = imgFor(p)
-                const price = typeof p.price === 'number' ? p.price : 0
-                const qty = typeof p.qty === 'number' ? p.qty : 0
-
-                return (
-                  <article key={href} className="card">
-                    <Link href={href} className="imgLink" aria-label={name}>
-                      <div className="imgBox">
-                        {img ? (
-                          <Image
-                            src={img}
-                            alt={name}
-                            fill
-                            sizes="(max-width: 900px) 50vw, 240px"
-                            style={{ objectFit: 'contain', objectPosition: 'center' }}
-                          />
-                        ) : (
-                          <div className="noImg">No image</div>
-                        )}
-                      </div>
-                    </Link>
-
-                    <h3 className="name" title={name}>
-                      <Link href={href}>{name}</Link>
-                    </h3>
-
-                    <div className="priceRow">
-                      <span className="price">
-                        {new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(price)}
-                        {p.condition ? ` • ${p.condition}` : ''}
-                      </span>
-                      <button
-                        className="addBtn"
-                        onClick={() =>
-                          add({
-                            id: p.itemNo || p._id || String(p.inventoryId || ''),
-                            name,
-                            price,
-                            qty: 1,
-                            imageUrl: img || undefined,
-                          })
-                        }
-                      >
-                        Add to cart
-                      </button>
+      {hasItems ? (
+        <>
+          <div className="grid">
+            {items.map((p) => {
+              const id = p.itemNo || p.id || p._id;
+              const href = `/minifig/${encodeURIComponent(id)}`;
+              const inCart = getQty(id);
+              const left = Math.max(0, (p.stock || 0) - inCart);
+              const disabled = left <= 0;
+              return (
+                <article key={id} className="card">
+                  <Link href={href} className="imgLink" aria-label={p.name || p.itemNo || "Minifig"}>
+                    <div className="imgBox">
+                      {p.imageUrl ? (
+                        <Image
+                          src={p.imageUrl}
+                          alt={p.name || p.itemNo || "Minifig"}
+                          fill
+                          sizes="(max-width: 900px) 50vw, 240px"
+                          style={{ objectFit: "contain", objectPosition: "center" }}
+                        />
+                      ) : (
+                        <div className="noImg">No image</div>
+                      )}
                     </div>
+                  </Link>
 
-                    <div className={`stock ${qty > 0 ? 'ok' : 'out'}`}>
-                      {qty > 0 ? `${qty} in stock` : 'Sold out'}
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
+                  <h3 className="name" title={p.name}>
+                    <Link href={href}>{p.name || p.itemNo || "Minifig"}</Link>
+                  </h3>
 
-            {pages > 1 && (
-              <nav className="pager" aria-label="Pagination">
-                <Link className="pbtn" href={buildHref(Math.max(1, page - 1))} aria-disabled={page <= 1}>
-                  ← Prev
-                </Link>
-                <span className="pmeta">Page {page} / {pages}</span>
-                <Link className="pbtn" href={buildHref(Math.min(pages, page + 1))} aria-disabled={page >= pages}>
-                  Next →
-                </Link>
-              </nav>
-            )}
-          </>
-        ) : (
-          <p className="empty">No items found.</p>
-        )}
-      </main>
+                  <div className="priceRow">
+                    <span className="price">${Number(p.price ?? 0).toFixed(2)}</span>
+                    <button
+                      className="addBtn"
+                      disabled={disabled}
+                      onClick={() =>
+                        !disabled &&
+                        add({
+                          id,
+                          name: p.name ?? p.itemNo ?? "Minifig",
+                          price: Number(p.price ?? 0),
+                          qty: 1,
+                          imageUrl: p.imageUrl ?? null,
+                          stock: p.stock,
+                        })
+                      }
+                    >
+                      {disabled ? "Sold out" : "Add to cart"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {pages > 1 && (
+            <nav className="pager" aria-label="Pagination">
+              <Link className="pbtn" href={buildHref(Math.max(1, (meta?.page ?? 1) - 1))} aria-disabled={(meta?.page ?? 1) <= 1}>
+                ← Prev
+              </Link>
+              <span className="pmeta">Page {meta?.page ?? 1} / {pages}</span>
+              <Link className="pbtn" href={buildHref(Math.min(pages, (meta?.page ?? 1) + 1))} aria-disabled={(meta?.page ?? 1) >= pages}>
+                Next →
+              </Link>
+            </nav>
+          )}
+        </>
+      ) : (
+        <p className="empty">No items found.</p>
+      )}
 
       <style jsx>{`
-        .wrap { margin-left:64px; padding:18px 22px 120px; max-width:1200px; }
         .filters { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 14px; }
-        .text, .select, .num { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
+        .text, .select { padding:8px 10px; border-radius:8px; border:1px solid #bdb7ae; background:#fff; }
         .text { min-width:220px; }
-        .num { width:110px; }
-        .btnPrimary { background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; color:#1a1a1a; cursor:pointer; }
-        .btnGhost { border:2px solid #204d69; color:#204d69; padding:8px 14px; border-radius:8px; font-weight:600; }
-        .meta { margin-left:auto; font-size:13px; color:#333; }
         .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:16px; }
         .card { background:#fff; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); padding:10px; display:flex; flex-direction:column; gap:8px; }
         .imgLink { display:block; }
@@ -262,71 +207,53 @@ export default function MinifigsByThemePage({
         .priceRow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; }
         .price { font-weight:700; color:#2a2a2a; }
         .addBtn { background:#e1b946; border:2px solid #a2801a; color:#1a1a1a; padding:8px 12px; border-radius:8px; font-weight:800; cursor:pointer; }
-        .stock { font-size:12px; margin-top:6px; }
-        .stock.ok { color:#1a7f37; }
-        .stock.out { color:#8a8a8a; }
         .pager { display:flex; gap:12px; align-items:center; justify-content:space-between; margin:18px 0 6px; }
         .pbtn { border:2px solid #204d69; color:#204d69; padding:6px 12px; border-radius:8px; font-weight:700; }
         .pmeta { color:#333; font-weight:600; }
         .empty { color:#333; font-size:15px; padding:8px 2px; }
-        @media (max-width:900px){ .wrap{ margin-left:64px; padding:14px 16px 110px; } }
       `}</style>
     </>
-  )
+  );
 }
 
 export async function getServerSideProps(ctx: any) {
-  const { req, query } = ctx
-  const host = req?.headers?.host || 'localhost:3000'
-  const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
+  const { req, query } = ctx;
+  const host = req?.headers?.host || "localhost:3000";
+  const proto = (req?.headers?.["x-forwarded-proto"] as string) || "http";
 
-  const page = Math.max(1, Number(query.page ?? 1))
-  const limit = Math.max(1, Math.min(72, Number(query.limit ?? 36)))
-  const q = typeof query.q === 'string' ? query.q : ''
-  const cond = typeof query.cond === 'string' ? query.cond : ''
-  const minPrice = typeof query.minPrice === 'string' ? query.minPrice : ''
-  const maxPrice = typeof query.maxPrice === 'string' ? query.maxPrice : ''
-  const sort = typeof query.sort === 'string' ? query.sort : 'name_asc'
-  const theme = typeof query.theme === 'string' ? query.theme : ''
+  const p = new URLSearchParams();
+  p.set("type", "MINIFIG");
+  if (query.q) p.set("q", String(query.q));
+  p.set("inStock", String(query.inStock ?? "1"));
+  if (query.theme) p.set("theme", String(query.theme));
+  if (query.collection) p.set("collection", String(query.collection));
+  if (query.series) p.set("series", String(query.series));
+  p.set("page", String(query.page ?? "1"));
+  p.set("limit", String(query.limit ?? "36"));
+  p.set("sort", String(query.sort ?? "name"));
 
-  const p = new URLSearchParams()
-  p.set('type', 'MINIFIG')
-  p.set('page', String(page))
-  p.set('limit', String(limit))
-  if (theme) p.set('theme', theme)
-  if (q) p.set('q', q)
-  if (cond) p.set('cond', cond)
-  if (minPrice) p.set('minPrice', minPrice)
-  if (maxPrice) p.set('maxPrice', maxPrice)
-  if (sort) p.set('sort', sort)
-
-  const [itemsRes, themesRes] = await Promise.all([
+  const [itemsRes, facetsRes] = await Promise.all([
     fetch(`${proto}://${host}/api/products?${p.toString()}`),
-    fetch(`${proto}://${host}/api/themes?type=MINIFIG`)
-  ])
+    fetch(`${proto}://${host}/api/themes?type=MINIFIG`),
+  ]);
 
-  let items: Item[] = []
-  let count = 0
+  let items: Item[] = [];
+  let meta = { total: 0, page: 1, limit: 36 };
+  let facets = { themes: [], collections: [], series: [] } as any;
+
   if (itemsRes.ok) {
-    const data = await itemsRes.json()
-    const arr =
-      (Array.isArray(data.inventory) && data.inventory) ||
-      (Array.isArray(data.items) && data.items) ||
-      (Array.isArray(data.results) && data.results) ||
-      []
-    items = arr
-    count = Number(data.count ?? arr.length ?? 0)
+    const data = await itemsRes.json();
+    items = Array.isArray(data.items) ? data.items : [];
+    meta = data.meta || meta;
+    facets = data.facets || facets;
   }
-
-  let themeOptions: ThemeOpt[] = []
-  if (themesRes.ok) {
-    const t = await themesRes.json()
-    if (Array.isArray(t.options)) themeOptions = t.options
-  }
-
-  return {
-    props: {
-      items, count, page, limit, q, cond, minPrice, maxPrice, sort, theme, themeOptions
+  if (facetsRes.ok) {
+    const d = await facetsRes.json();
+    // Prefer API facets; fallback to products facets if themes empty
+    if (!Array.isArray(facets.themes) || !facets.themes.length) {
+      facets = { themes: d.options || [], collections: d.collections || [], series: d.series || [] };
     }
   }
+
+  return { props: { items, meta, facets, queryDefaults: Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])) } };
 }

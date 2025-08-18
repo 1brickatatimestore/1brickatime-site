@@ -1,153 +1,121 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import type { GetServerSideProps } from 'next'
+// src/pages/minifig/[id].tsx
+import Head from "next/head";
+import Image from "next/image";
+import { useCart } from "@/context/CartContext";
 
-type Product = {
-  _id?: string
-  inventoryId?: number                 // BrickLink lot id
-  itemNo?: string                      // BrickLink minifig id (e.g. sw00452)
-  name?: string
-  price?: number
-  qty?: number
-  condition?: 'N' | 'U' | string
-  imageUrl?: string | null
-  // extra BL-ish fields (these are commonly present after sync)
-  description?: string                 // BrickLink “Description”
-  remarks?: string                     // BrickLink “My remarks”
-  blItemId?: string | number           // sometimes present from API
-}
+type Item = {
+  _id: string;
+  id: string;
+  itemNo: string;
+  name: string;
+  remarks?: string;
+  inventoryId?: number;
+  price: number;
+  priceCents: number;
+  imageUrl?: string | null;
+  stock: number;
+  theme?: string;
+  collection?: string;
+  series?: string;
+  condition?: string;
+};
 
-function decodeHtml(s?: string | null) {
-  if (!s) return ''
-  // quick & safe for the few encodings BrickLink uses in names
-  return s
-    .replace(/&#40;/g, '(')
-    .replace(/&#41;/g, ')')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-}
-
-export default function MinifigPage({ p }: { p: Product }) {
-  const name = decodeHtml(p?.name) || p?.itemNo || 'Minifigure'
-  const img = p?.imageUrl || '/no-image.png' // never undefined
-  const price = typeof p?.price === 'number' ? p!.price : 0
+export default function MinifigDetail({ p }: { p: Item }) {
+  const { add, getQty } = useCart();
+  const inCart = getQty(p.itemNo || p.id);
+  const left = Math.max(0, (p.stock || 0) - inCart);
+  const disabled = left <= 0;
 
   return (
     <>
-      <Head><title>{name} — 1 Brick at a Time</title></Head>
+      <Head><title>{p.name || p.itemNo} — 1 Brick at a Time</title></Head>
 
-      <main className="wrap">
-        <article className="card">
-          <div className="imgBox">
-            <Image
-              src={img}
-              alt={name}
-              fill
-              sizes="(max-width: 900px) 90vw, 520px"
-              style={{ objectFit: 'contain', objectPosition: 'center' }}
-              priority
-            />
+      <article className="wrap detail">
+        <div className="imgCol">
+          {p.imageUrl ? (
+            <Image src={p.imageUrl} alt={p.name || p.itemNo} width={480} height={480} />
+          ) : (
+            <div className="noImg">No image</div>
+          )}
+        </div>
+
+        <div className="infoCol">
+          <h1>{p.name || p.itemNo}</h1>
+          <dl className="meta">
+            {p.itemNo && (<><dt>Item No</dt><dd>{p.itemNo}</dd></>)}
+            {p.inventoryId != null && (<><dt>Inventory ID</dt><dd>{p.inventoryId}</dd></>)}
+            {p.theme && (<><dt>Theme</dt><dd>{p.theme}</dd></>)}
+            {p.collection && (<><dt>Collection</dt><dd>{p.collection}</dd></>)}
+            {p.series && (<><dt>Series</dt><dd>{p.series}</dd></>)}
+            {p.condition && (<><dt>Condition</dt><dd>{p.condition}</dd></>)}
+          </dl>
+
+          {p.remarks && <p className="remarks">{p.remarks}</p>}
+
+          <div className="buyRow">
+            <div className="price">${p.price.toFixed(2)}</div>
+            <button
+              className="addBtn"
+              disabled={disabled}
+              onClick={() => !disabled && add({
+                id: p.itemNo || p.id,
+                name: p.name || p.itemNo,
+                price: p.price,
+                qty: 1,
+                imageUrl: p.imageUrl ?? null,
+                stock: p.stock,
+              })}
+            >
+              {disabled ? "Sold out" : "Add to cart"}
+            </button>
           </div>
-
-          <div className="info">
-            <h1 className="title">{name}</h1>
-            <div className="sku">SKU: {p?.itemNo || '—'}</div>
-            <div className="price">AU${price.toFixed(2)}</div>
-            <div className="stock">{(p?.qty ?? 0) > 0 ? '1 in stock' : 'Out of stock'}</div>
-
-            <dl className="meta">
-              <div>
-                <dt>Lot ID</dt>
-                <dd>{p?.inventoryId ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>Minifig ID</dt>
-                <dd>{p?.itemNo ?? '—'}</dd>
-              </div>
-              {p?.blItemId ? (
-                <div>
-                  <dt>BrickLink Item</dt>
-                  <dd>{String(p.blItemId)}</dd>
-                </div>
-              ) : null}
-            </dl>
-
-            {(p?.description || p?.remarks) && (
-              <section className="text">
-                {p?.description ? (
-                  <>
-                    <h3>Description</h3>
-                    <p>{decodeHtml(p.description)}</p>
-                  </>
-                ) : null}
-                {p?.remarks ? (
-                  <>
-                    <h3>Seller remarks</h3>
-                    <p>{decodeHtml(p.remarks)}</p>
-                  </>
-                ) : null}
-              </section>
-            )}
-          </div>
-        </article>
-      </main>
+          {p.stock > 0 && <div className="stock">In stock: {left} left</div>}
+        </div>
+      </article>
 
       <style jsx>{`
-        .wrap{ margin-left:64px; padding:20px; }
-        .card{ display:grid; grid-template-columns:520px 1fr; gap:24px; background:#fff; padding:18px; border-radius:14px; box-shadow:0 2px 8px rgba(0,0,0,.08); }
-        .imgBox{ position:relative; width:100%; aspect-ratio:1/1; background:#f6f4f0; border-radius:12px; overflow:hidden; }
-        .info{ display:flex; flex-direction:column; gap:8px; }
-        .title{ margin:0 0 4px; }
-        .sku{ color:#666; font-size:12px; }
-        .price{ font-weight:800; }
-        .stock{ color:#1a7f37; font-weight:700; }
-        .meta{ display:grid; grid-template-columns:repeat(3, minmax(120px, 1fr)); gap:12px; margin-top:6px; }
-        .meta dt{ font-size:12px; color:#666; }
-        .meta dd{ margin:2px 0 0; font-weight:600; }
-        .text h3{ margin:14px 0 6px; }
-        @media (max-width:900px){
-          .card{ grid-template-columns:1fr; }
-        }
+        .detail { display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
+        .imgCol { background:#f7f5f2; border-radius:12px; display:grid; place-items:center; min-height:360px; }
+        .infoCol h1{ margin:0 0 10px; font-size:22px; }
+        .meta { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; }
+        dt{ color:#555; } dd{ margin:0; }
+        .remarks{ margin:14px 0; color:#333; }
+        .buyRow{ display:flex; align-items:center; gap:14px; margin-top:12px; }
+        .price{ font-size:20px; font-weight:800; }
+        .addBtn{ background:#e1b946; border:2px solid #a2801a; padding:8px 14px; border-radius:8px; font-weight:800; }
+        .stock{ color:#555; margin-top:6px; }
+        @media (max-width:900px){ .detail{ grid-template-columns:1fr; } }
       `}</style>
     </>
-  )
+  );
 }
 
-/**
- * Accepts:
- *  - /minifig/<ObjectId>
- *  - /minifig/<inventoryId>     (number, BL lot id)
- *  - /minifig/<itemNo>          (e.g. sw0452, hp008, etc.)
- */
-export const getServerSideProps: GetServerSideProps = async ({ params, req }) => {
-  const id = String(params?.id || '')
-  const host = req?.headers?.host || 'localhost:3000'
-  const proto = (req?.headers?.['x-forwarded-proto'] as string) || 'http'
+export async function getServerSideProps(ctx: any) {
+  const { req, query, params } = ctx;
+  const host = req?.headers?.host || "localhost:3000";
+  const proto = (req?.headers?.["x-forwarded-proto"] as string) || "http";
+  const id = String(query.id ?? params?.id ?? "");
 
-  // Ask the products API for EXACTLY one item by the most forgiving key
-  const url = new URL(`${proto}://${host}/api/products`)
-  url.searchParams.set('limit', '1')
-  // send all three keys; the API can decide which matches
-  url.searchParams.set('id', id)                // ObjectId
-  url.searchParams.set('inventoryId', id)       // numeric string ok
-  url.searchParams.set('itemNo', id.toLowerCase())
+  const resP = await fetch(`${proto}://${host}/api/products?id=${encodeURIComponent(id)}`);
+  if (!resP.ok) return { notFound: true };
 
-  const r = await fetch(url.toString())
-  if (!r.ok) return { notFound: true }
+  const pRaw = await resP.json();
+  const p: Item = {
+    _id: String(pRaw._id || pRaw.id || ""),
+    id: String(pRaw.id || pRaw._id || ""),
+    itemNo: String(pRaw.itemNo || ""),
+    name: String(pRaw.name || ""),
+    remarks: pRaw.remarks || "",
+    inventoryId: pRaw.inventoryId ?? null,
+    price: Number(pRaw.price ?? 0),
+    priceCents: Number(pRaw.priceCents ?? 0),
+    imageUrl: pRaw.imageUrl || null,  // never undefined
+    stock: Number(pRaw.stock ?? 0),
+    theme: pRaw.theme || "",
+    collection: pRaw.collection || "",
+    series: pRaw.series || "",
+    condition: pRaw.condition || "",
+  };
 
-  const j = await r.json()
-  const p: Product | undefined =
-    Array.isArray(j.items) && j.items.length ? j.items[0] :
-    Array.isArray(j.results) && j.results.length ? j.results[0] :
-    undefined
-
-  if (!p) return { notFound: true }
-
-  // Never send undefined to Next; normalize
-  if (!p.imageUrl) (p as any).imageUrl = null
-
-  return { props: { p } }
+  return { props: { p } };
 }
