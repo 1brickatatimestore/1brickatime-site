@@ -1,177 +1,199 @@
-mkdir -p src/lib
-cat > src/lib/bricklink.ts <<'TS'
+// src/lib/bricklink.ts
 import crypto from "crypto";
 
-/**
- * Minimal OAuth 1.0a signer for BrickLink Store API using HMAC-SHA1.
- * Works with either BL_* or BRICKLINK_* env var names.
- */
-function getEnv(name: string, fallback?: string) {
-  return (
-    process.env[name] ||
-    process.env["BL_" + name] ||
-    process.env["BRICKLINK_" + name] ||
-    fallback ||
-    ""
-  );
+// Tiny BrickLink OAuth 1.0 client (for your own store inventory)
+type OAuthCfg = {
+  key: string;
+  secret: string;
+  token: string;
+  tokenSecret: string;
+  userId: string;
+};
+
+const cfg: OAuthCfg = {
+  key: process.env.BL_KEY || "",
+  secret: process.env.BL_SECRET || "",
+  token: process.env.BL_TOKEN || "",
+  tokenSecret: process.env.BL_TOKEN_SECRET || "",
+  userId: process.env.BL_USER_ID || "",
+};
+
+function percent(s: string) {
+  return encodeURIComponent(s)
+    .replace(/[!*()']/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
-const CONSUMER_KEY     = getEnv("CONSUMER_KEY");
-const CONSUMER_SECRET  = getEnv("CONSUMER_SECRET");
-const OAUTH_TOKEN      = getEnv("OAUTH_TOKEN");
-const OAUTH_TOKEN_SECRET = getEnv("OAUTH_TOKEN_SECRET");
-
-if (!CONSUMER_KEY || !CONSUMER_SECRET || !OAUTH_TOKEN || !OAUTH_TOKEN_SECRET) {
-  // We won't throw here; api route will surface a clear error message.
+function nonce(len = 16) {
+  return crypto.randomBytes(len).toString("hex");
 }
 
-function percentEncode(str: string) {
-  return encodeURIComponent(str)
-    .replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+function ts() {
+  return Math.floor(Date.now() / 1000).toString();
 }
 
-function buildAuthHeader(method: string, url: string, extraParams: Record<string,string|number> = {}) {
-  const oauthParams: Record<string,string> = {
-    oauth_consumer_key: CONSUMER_KEY,
-    oauth_token: OAUTH_TOKEN,
+function baseString(method: string, url: string, params: Record<string, string>) {
+  const norm = Object.keys(params)
+    .sort()
+    .map((k) => `${percent(k)}=${percent(params[k])}`)
+    .join("&");
+  return [method.toUpperCase(), percent(url), percent(norm)].join("&");
+}
+
+function signingKey(consumerSecret: string, tokenSecret: string) {
+  return `${percent(consumerSecret)}&${percent(tokenSecret)}`;
+}
+
+function hmacSha1(input: string, key: string) {
+  return crypto.createHmac("sha1", key).update(input).digest("base64");
+}
+
+function authHeader(params: Record<string, string>) {
+  const parts = Object.keys(params)
+    .filter((k) => k.startsWith("oauth_"))
+    .sort()
+    .map((k) => `${percent(k)}="${percent(params[k])}"`);
+  return "OAuth " + parts.join(", ");
+}
+
+async function blGET(path: string, query: Record<string, string | number | undefined> = {}) {
+  if (!cfg.key || !cfg.secret || !cfg.token || !cfg.tokenSecret) {
+    throw new Error("BrickLink credentials missing (BL_* env vars).");
+  }
+  const base = "https://api.bricklink.com/api/store/v1";
+  const url = `${base}${path}`;
+
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key: cfg.key,
+    oauth_nonce: nonce(),
     oauth_signature_method: "HMAC-SHA1",
-    oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
-    oauth_nonce: crypto.randomBytes(16).toString("hex"),
+    oauth_timestamp: ts(),
+    oauth_token: cfg.token,
     oauth_version: "1.0",
   };
 
-  const allParams: Record<string,string> = {
-    ...Object.fromEntries(
-      Object.entries(extraParams).map(([k,v]) => [k, String(v)])
-    ),
-    ...oauthParams,
-  };
+  // Merge OAuth + query for signature base
+  const allParams: Record<string, string> = { ...oauthParams };
+  for (const [k, v] of Object.entries(query)) {
+    if (v !== undefined && v !== null) allParams[k] = String(v);
+  }
 
-  // Normalize params
-  const paramString = Object.keys(allParams)
-    .sort()
-    .map((k) => `${percentEncode(k)}=${percentEncode(allParams[k])}`)
+  const baseStr = baseString("GET", url, allParams);
+  const sig = hmacSha1(baseStr, signingKey(cfg.secret, cfg.tokenSecret));
+  oauthParams.oauth_signature = sig;
+
+  const q = Object.keys(query)
+    .filter((k) => query[k] !== undefined && query[k] !== null)
+    .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(String(query[k]))}`)
     .join("&");
+  const finalUrl = q ? `${url}?${q}` : url;
 
-  const baseString = [
-    method.toUpperCase(),
-    percentEncode(url.split("?")[0]),
-    percentEncode(paramString),
-  ].join("&");
+  const resp = await fetch(finalUrl, {
+    method: "GET",
+    headers: {
+      Authorization: authHeader(oauthParams),
+      "Content-Type": "application/json",
+    } as any,
+    // Vercel edge/build sometimes needs this
+    cache: "no-store",
+  });
 
-  const signingKey = `${percentEncode(CONSUMER_SECRET)}&${percentEncode(OAUTH_TOKEN_SECRET)}`;
-  const signature = crypto.createHmac("sha1", signingKey).update(baseString).digest("base64");
-  const oauthHeader = {
-    ...oauthParams,
-    oauth_signature: signature,
-  };
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(`BrickLink ${resp.status}: ${text || resp.statusText}`);
+  }
 
-  const header = "OAuth " + Object.keys(oauthHeader)
-    .sort()
-    .map((k) => `${percentEncode(k)}="${percentEncode(oauthHeader[k])}"`)
-    .join(", ");
-
-  return header;
+  const json = await resp.json();
+  // BrickLink wraps as { meta, data }
+  return json?.data ?? json;
 }
 
 /**
- * Call BrickLink Store API.
- * Docs: https://www.bricklink.com/v3/api.page?page=store-api
+ * Fetch ALL minifig lots for your store (available or stockroom),
+ * then normalize into the shape the UI expects.
  */
-async function blFetch<T>(path: string, query: Record<string, string | number> = {}) {
-  const base = "https://api.bricklink.com/api/store/v1";
-  const qs = new URLSearchParams();
-  for (const [k,v] of Object.entries(query)) qs.set(k, String(v));
-  const url = `${base}${path}${qs.toString() ? `?${qs.toString()}` : ""}`;
+export async function fetchLiveMinifigsAll(opts?: { limit?: number; light?: boolean; includeStockroom?: boolean }) {
+  const limit = opts?.limit ?? 10000;
+  const light = !!opts?.light;
+  const includeStockroom = opts?.includeStockroom ?? true;
 
-  const auth = buildAuthHeader("GET", url, query);
-  const res = await fetch(url, { headers: { Authorization: auth } });
+  // We pull INVENTORY (your store’s lots)
+  // doc: GET /inventories
+  // We'll filter to item.type = "MINIFIG"
+  const all: any[] = await blGET("/inventories", { });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`BrickLink ${res.status} ${res.statusText}: ${text || url}`);
-  }
-  const data = await res.json();
-  return data as T;
+  // Filter & normalize
+  const rows = all
+    .filter((lot: any) => lot?.item?.type === "MINIFIG")
+    .filter((lot: any) => includeStockroom ? true : Number(lot?.quantity) > 0)
+    .slice(0, limit)
+    .map((lot: any) => toLiveMinifig(lot, { light }));
+
+  return rows;
 }
-
-type BLInventoryItem = {
-  inventory_id: number;
-  item: {
-    no: string;           // e.g. "jw038"
-    name?: string;        // may be missing in some responses
-    type: string;         // "MINIFIG"
-  };
-  color_id?: number;      // not used for minifigs
-  quantity: number;
-  new_or_used: "N" | "U";
-  unit_price: number;
-  remarks?: string;
-  comments?: string;
-  reserved_qty?: number;
-  stock_room?: "Y" | "N"; // "Y" => stockroom (NOT for sale)
-  status?: "A" | "I";     // A active, I inactive
-};
-
-type BLResponse<T> = { meta: { code: number; description: string }; data: T };
 
 /**
- * Fetch ONLY items AVAILABLE FOR SALE (not stockroom), type MINIFIG.
- * BrickLink "inventories" endpoint returns your store inventory.
+ * Fetch a single minifig lot by itemNo (first match).
  */
-export async function fetchMinifigsPage(page = 1, limit = 36) {
-  // BrickLink uses page/page_size in some endpoints. We’ll use a safe
-  // approach: request page/limit; if unsupported, fetch more and slice.
-  const page_size = Math.min(Math.max(limit, 1), 200);
-
-  // Query we’ll try:
-  // - item_type=MINIFIG (minifigs)
-  // - status=Y (for sale)
-  // - stock_room=N (exclude stockroom)
-  const query = {
-    item_type: "MINIFIG",
-    status: "Y",
-    stock_room: "N",
-    page,
-    page_size,
-  } as Record<string,string|number>;
-
-  // Main attempt
-  try {
-    const r = await blFetch<BLResponse<BLInventoryItem[]>>("/inventories", query);
-    const rows = Array.isArray(r?.data) ? r.data : [];
-
-    // Derive friendly fields
-    const items = rows.map((d) => {
-      const itemNo = d?.item?.no || "";
-      const name = d?.item?.name || ""; // often missing — OK
-      const imageUrl = itemNo ? `https://img.bricklink.com/ItemImage/MN/0/${encodeURIComponent(itemNo)}.png` : "";
-      return {
-        id: String(d.inventory_id),
-        itemNo,
-        name,
-        price: Number(d.unit_price || 0),
-        stock: Math.max(0, Number(d.quantity || 0) - Number(d.reserved_qty || 0)),
-        imageUrl,
-        remarks: d.remarks || d.comments || "",
-        condition: d.new_or_used === "N" ? "New" : "Used",
-        theme: "",       // taxonomy step can fill later
-        collection: "",
-        series: "",
-      };
-    });
-
-    return {
-      items,
-      meta: {
-        totalLots: items.length, // BrickLink doesn’t return totals here; this is page size
-        page,
-        pageSize: limit,
-      },
-    };
-  } catch (err) {
-    // Surface error to caller; they may choose a fallback.
-    throw err;
-  }
+export async function fetchLiveMinifigByNo(itemNo: string) {
+  if (!itemNo) return null;
+  const all = await fetchLiveMinifigsAll({ limit: 10000, light: false, includeStockroom: true });
+  return all.find((x) => x.itemNo === itemNo) || null;
 }
-TS
+
+/** Normalize a BrickLink lot to UI shape */
+export function toLiveMinifig(lot: any, opts?: { light?: boolean }) {
+  const light = !!opts?.light;
+  const itemNo = lot?.item?.no || lot?.item?.number || lot?.item_no || "";
+  const name = lot?.item?.name || lot?.description || "";
+  const price = Number(lot?.unit_price ?? lot?.unitPrice ?? lot?.price ?? 0);
+  const stock = Number(lot?.quantity ?? lot?.qty ?? 0);
+  const remarks = lot?.remarks ?? lot?.remark ?? "";
+  const condition = lot?.new_or_used ?? lot?.condition ?? "";
+  const imageUrl =
+    lot?.item?.image_url ||
+    lot?.image_url ||
+    (itemNo ? `https://img.bricklink.com/ItemImage/MN/0/${encodeURIComponent(itemNo)}.png` : "");
+
+  // You can enrich “theme/collection/series” later (classification step)
+  const theme = lot?.extra_info?.theme ?? "Other";
+  const collection = lot?.extra_info?.collection ?? "Other";
+  const series = lot?.extra_info?.series ?? "";
+
+  const base = {
+    id: itemNo,
+    itemNo,
+    name,
+    price,
+    stock,
+    imageUrl,
+    remarks,
+    condition,
+    theme,
+    collection,
+    series,
+  };
+
+  if (light) return base;
+
+  return {
+    ...base,
+    lotId: lot?.inventory_id || lot?.id || null,
+    description: lot?.description ?? "",
+    weight: lot?.weight ?? null,
+    // attach the raw just in case you want to debug in detail views
+    _raw: lot,
+  };
+}
+
+// Small helpers used by API routes
+export function qInt(v: string | string[] | undefined, def = 0) {
+  if (typeof v === "string") {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : def;
+  }
+  return def;
+}
+
+export function qStr(v: string | string[] | undefined, def = "") {
+  return typeof v === "string" ? v : def;
+}
