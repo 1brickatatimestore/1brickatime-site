@@ -4,3 +4,10 @@
 .DS_Store
 *.log
 .vercel
+
+# Keep heavy build/release artifacts out of git
+releases/
+*.tar.gz
+*.zip
+*.tgz
+*.7z
