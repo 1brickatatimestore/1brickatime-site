@@ -11,3 +11,7 @@ releases/
 *.zip
 *.tgz
 *.7z
+
+# Never commit secrets
+.env*
+!.env.example
