@@ -1,0 +1,47 @@
+[
+  {
+    "figNumber": "sw001",
+    "name": "Luke Skywalker (Tatooine)",
+    "theme": "Star Wars",
+    "priceAUD": 14.99,
+    "qty": 5,
+    "image": "https://images.brickset.com/minifigs/large/sw001.jpg",
+    "updatedAt": "2025-08-19T00:00:00.000Z"
+  },
+  {
+    "figNumber": "sw002",
+    "name": "Darth Vader",
+    "theme": "Star Wars",
+    "priceAUD": 29.99,
+    "qty": 3,
+    "image": "https://images.brickset.com/minifigs/large/sw002.jpg",
+    "updatedAt": "2025-08-19T00:00:00.000Z"
+  },
+  {
+    "figNumber": "hp001",
+    "name": "Harry Potter (Hogwarts Robes)",
+    "theme": "Harry Potter",
+    "priceAUD": 12.00,
+    "qty": 8,
+    "image": "https://images.brickset.com/minifigs/large/hp001.jpg",
+    "updatedAt": "2025-08-19T00:00:00.000Z"
+  },
+  {
+    "figNumber": "cty001",
+    "name": "City Police Officer",
+    "theme": "City",
+    "priceAUD": 5.50,
+    "qty": 12,
+    "image": "https://images.brickset.com/minifigs/large/cty001.jpg",
+    "updatedAt": "2025-08-19T00:00:00.000Z"
+  },
+  {
+    "figNumber": "nin001",
+    "name": "Kai (Ninjago)",
+    "theme": "Ninjago",
+    "priceAUD": 9.90,
+    "qty": 6,
+    "image": "https://images.brickset.com/minifigs/large/nin001.jpg",
+    "updatedAt": "2025-08-19T00:00:00.000Z"
+  }
+]
