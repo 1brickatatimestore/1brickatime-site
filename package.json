@@ -1,38 +1,33 @@
 {
   "name": "1brickatime-site",
-  "version": "0.1.3",
   "private": true,
+  "version": "0.0.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:ping": "node -r dotenv/config scripts/db-ping.mjs dotenv_config_path=.env.local",
+    "seed:minifigs": "node -r dotenv/config scripts/seed-minifigs.mjs dotenv_config_path=.env.local",
+    "vercel:preview": "vercel --yes",
+    "vercel:prod": "vercel --prod",
+    "api:curl:preview": "curl -s \"$PREV/api/minifigs-live?limit=2\" | jq",
+    "api:curl:prod": "curl -s \"$PROD/api/minifigs-live?limit=2\" | jq"
   },
   "dependencies": {
-    "axios": "^1.11.0",
-    "mongoose": "^8.17.1",
-    "next": "^15.4.5",
-    "node-fetch": "^2.7.0",
-    "nodemailer": "^7.0.5",
-    "oauth-1.0a": "^2.2.6",
-    "oauth-signature": "^1.5.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "stripe": "^18.4.0"
+    "dotenv": "^16.4.5",
+    "mongodb": "^6.8.0",
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
-    "@types/node": "24.3.0",
-    "@types/react": "19.1.10",
-    "@typescript-eslint/eslint-plugin": "^8.6.0",
-    "@typescript-eslint/parser": "^8.6.0",
-    "autoprefixer": "^10.4.21",
-    "dotenv": "^17.2.1",
-    "eslint": "^9.9.0",
-    "eslint-config-next": "^15.4.5",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.1",
-    "eslint-plugin-react-hooks": "^5.1.0",
-    "prettier": "^3.3.3",
+    "@types/node": "^20.14.9",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.5",
     "typescript": "^5.5.4"
   }
 }
