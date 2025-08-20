@@ -15,3 +15,7 @@ releases/
 # Never commit secrets
 .env*
 !.env.example
+
+# Never commit secrets
+.env*
+!.env.example
