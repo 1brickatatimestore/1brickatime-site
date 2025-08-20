@@ -1,140 +1,76 @@
-// src/pages/api/minifigs-live.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient } from 'mongodb';
 
 type Minifig = {
-  _id: string;
-  id?: string;
+  _id?: any;
+  figNumber?: string;
   name?: string;
-  price?: number;
+  theme?: string;
+  priceAUD?: number;
   qty?: number;
-  img?: string;
-  tags?: string[];
-  [k: string]: unknown;
+  image?: string;
+  updatedAt?: string;
+  [k: string]: any;
 };
 
-type Data =
-  | { ok: true; count: number; items: Minifig[] }
-  | { ok: false; error: string };
+type Ok = { ok: true; count: number; items: Minifig[] };
+type Err = { ok: false; error: string };
 
-const getEnv = (name: string, fallback?: string) => {
-  const v = process.env[name] ?? fallback;
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
+const getEnv = (k: string, fallback = '') =>
+  (process.env[k] ?? fallback).toString().trim();
+
+const parseIntSafe = (v: any, d: number) => {
+  const n = Number.parseInt(String(v), 10);
+  return Number.isFinite(n) && n > 0 ? n : d;
 };
 
-// --- minimal Mongo cached client (avoids multiple connections on Vercel) ---
-let cachedClient: MongoClient | null = null;
-let cachedDb: Db | null = null;
-
-async function getDb(): Promise<Db> {
-  if (cachedDb) return cachedDb;
+export default async function handler(req: NextApiRequest, res: NextApiResponse<Ok | Err>) {
   const uri = getEnv('MONGODB_URI');
-  const dbName = getEnv('MONGODB_DB');
-  const client = cachedClient ?? new MongoClient(uri);
-  cachedClient = client;
-  if (!client.topology) {
-    await client.connect();
-  }
-  cachedDb = client.db(dbName);
-  return cachedDb!;
-}
+  const dbName = getEnv('MONGODB_DB', 'bricklink');
 
-// --- helpers ---
-const asArray = (v: unknown): string[] =>
-  Array.isArray(v) ? v.map(String) : v != null ? [String(v)] : [];
+  const primary = getEnv('MINIFIGS_COLLECTION', 'products_minifig');
+  const fallback = getEnv('MINIFIGS_ENRICHED_COLLECTION', 'products_minifig_enriched');
 
-const asBool = (v: unknown): boolean => {
-  if (v == null) return false;
-  const s = String(v).toLowerCase();
-  return s === '1' || s === 'true' || s === 'yes';
-};
+  const limit = parseIntSafe(req.query.limit, 20);
+  const theme = typeof req.query.theme === 'string' ? req.query.theme.trim() : '';
+  const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
 
-const asNumber = (v: unknown, def: number): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : def;
-};
+  if (!uri) return res.status(500).json({ ok: false, error: 'MONGODB_URI missing' });
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
+  const client = new MongoClient(uri);
   try {
-    if (req.method !== 'GET') {
-      res.setHeader('Allow', 'GET');
-      return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
-    }
+    await client.connect();
+    const db = client.db(dbName);
 
-    // Safely read query params
-    const limit = Math.min(Math.max(asNumber(req.query.limit, 24), 1), 100);
-    const search = (req.query.search ?? '').toString().trim();
-    const themes = asArray(req.query.theme);        // supports ?theme=Star%20Wars&theme=City
-    const tags = asArray(req.query.tags);           // supports ?tags=foo&tags=bar
-    const inStock = asBool(req.query.inStock);
-    const priceMin = Number.isFinite(Number(req.query.priceMin)) ? Number(req.query.priceMin) : undefined;
-    const priceMax = Number.isFinite(Number(req.query.priceMax)) ? Number(req.query.priceMax) : undefined;
+    const baseFilter: Record<string, any> = {
+      $or: [{ qty: { $gt: 0 } }, { qty: { $exists: false } }],
+    };
+    if (theme) baseFilter.theme = theme;
 
-    // Build Mongo filter
-    const filter: Record<string, any> = {};
+    const runQuery = async (collectionName: string) => {
+      const col = db.collection<Minifig>(collectionName);
+      if (q) {
+        try {
+          return await col.find({ ...baseFilter, $text: { $search: q } }).limit(limit).toArray();
+        } catch {
+          const regexOr = [
+            { name: { $regex: q, $options: 'i' } },
+            { figNumber: { $regex: q, $options: 'i' } },
+            { theme: { $regex: q, $options: 'i' } },
+          ];
+          return await col.find({ ...baseFilter, $or: [...(baseFilter.$or || []), ...regexOr] }).limit(limit).toArray();
+        }
+      }
+      return await col.find(baseFilter).limit(limit).toArray();
+    };
 
-    if (search) {
-      // If you don't have a text index, you can fall back to a regex on name
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { id: { $regex: search, $options: 'i' } },
-        { tags: { $elemMatch: { $regex: search, $options: 'i' } } },
-      ];
-    }
-    if (themes.length) {
-      // assumes field "theme" or "themeName"; adjust if yours is different
-      filter.$or = [
-        ...(filter.$or ?? []),
-        { theme: { $in: themes } },
-        { themeName: { $in: themes } },
-      ];
-    }
-    if (tags.length) {
-      filter.tags = { $all: tags };
-    }
-    if (inStock) {
-      filter.qty = { $gt: 0 };
-    }
-    if (priceMin != null || priceMax != null) {
-      filter.price = {};
-      if (priceMin != null) filter.price.$gte = priceMin;
-      if (priceMax != null) filter.price.$lte = priceMax;
-    }
+    let items = await runQuery(primary);
+    if (!items?.length) items = await runQuery(fallback);
 
-    // Choose collection: prefer enriched if set
-    const enriched = process.env.MINIFIGS_ENRICHED_COLLECTION;
-    const fallback = process. PAYPAL_CLIENT_SECRET_REDACTED|| 'products_minifig';
-    const collName = enriched && enriched.trim().length > 0 ? enriched : fallback;
-
-    const db = await getDb();
-    const pipeline: any[] = [
-      { $match: filter },
-      // Optional shaping / sorting; change to your fields
-      { $sort: { qty: -1, price: 1, name: 1 } },
-      { $limit: limit },
-      {
-        $project: {
-          _id: 0,
-          id: 1,
-          name: 1,
-          price: 1,
-          qty: 1,
-          img: 1,
-          tags: 1,
-          theme: 1,
-          themeName: 1,
-        },
-      },
-    ];
-
-    const items = (await db.collection(collName).aggregate(pipeline).toArray()) as Minifig[];
-
-    return res.status(200).json({ ok: true, count: items.length, items });
+    res.status(200).json({ ok: true, count: items?.length || 0, items: items || [] });
   } catch (err: any) {
-    console.error('minifigs-live error:', err?.stack || err?.message || err);
-    return res
-      .status(500)
-      .json({ ok: false, error: err?.message || 'Internal Server Error' });
+    res.status(500).json({ ok: false, error: err?.message || String(err) });
+  } finally {
+    await client.close().catch(() => {});
   }
 }
