@@ -1,0 +1,19 @@
+.header {
+  @apply bg-gray-900 text-white px-6 py-4 flex items-center justify-between;
+}
+
+.logo {
+  @apply text-xl font-bold tracking-wide;
+}
+
+.nav {
+  @apply flex space-x-4;
+}
+
+.link {
+  @apply text-white hover:text-yellow-400 transition;
+}
+
+.active {
+  @apply font-semibold underline underline-offset-4 text-yellow-300;
+}
