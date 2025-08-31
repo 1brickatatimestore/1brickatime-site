@@ -1,0 +1,58 @@
+/* components/MinifigCard.module.css */
+.card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px;
+  transition: box-shadow 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover {
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.imageWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  margin-bottom: 8px;
+}
+
+.image {
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.name {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.theme {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.priceQty {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.price {
+  font-weight: bold;
+}
+
+.qty {
+  color: #555;
+}

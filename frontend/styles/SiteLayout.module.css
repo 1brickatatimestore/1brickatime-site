@@ -1,0 +1,74 @@
+.site {
+  display: flex;
+  min-height: 100vh;
+  background: #f9f9f9;
+  color: #333;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+.sidebar {
+  width: 0;
+  background: #fff;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #ffffff;
+  padding: 16px 32px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo img {
+  height: 48px;
+  width: auto;
+}
+
+.nav {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+}
+
+.nav a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.nav a:hover {
+  color: #d32f2f;
+}
+
+.cart {
+  display: flex;
+  align-items: center;
+}
+
+.content {
+  flex: 1;
+  padding: 32px;
+  background-color: #fafafa;
+}
+
+.footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 0.875rem;
+  color: #666;
+  background: #fff;
+  border-top: 1px solid #eee;
+}
