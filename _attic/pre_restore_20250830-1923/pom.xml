@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- Using Spring Boot parent to keep versions sane + stable -->
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.2.5</version>
+    <relativePath/> <!-- lookup parent from repository -->
+  </parent>
+
+  <groupId>com.example</groupId>
+  <artifactId>brickatime</artifactId>
+  <version>1.0.0</version>
+  <name>brickatime</name>
+  <description>BrickLink Minifigure Sync Service</description>
+  <packaging>jar</packaging>
+
+  <properties>
+    <!-- Always produce Java 17 bytecode so it runs everywhere -->
+    <java.version>17</java.version>
+  </properties>
+
+  <dependencies>
+    <!-- REST controllers -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <!-- WebClient (for BrickLink API when you’re ready) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webflux</artifactId>
+    </dependency>
+
+    <!-- Actuator (health, metrics) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- ✅ CORRECT (non-reactive) Mongo for MongoRepository -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-mongodb</artifactId>
+    </dependency>
+
+    <!-- Tests -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Repackage runnable jar -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <mainClass>com.example.brickatime.BrickatimeApplication</mainClass>
+        </configuration>
+      </plugin>
+
+      <!-- Compile as Java 17 bytecode regardless of JDK used -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!-- 'release' sets source/target + links system modules correctly -->
+          <release>17</release>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!-- Profiles for quality-of-life (dev = nicer run flags) -->
+  <profiles>
+    <profile>
+      <id>dev</id>
+      <properties>
+        <!-- Silence native access warning from Tomcat/BoringSSL on newer JDKs -->
+        <spring-boot.run.jvmArguments>--enable-native-access=ALL-UNNAMED</spring-boot.run.jvmArguments>
+        <spring-boot.run.profiles>dev</spring-boot.run.profiles>
+      </properties>
+    </profile>
+  </profiles>
+
+</project>

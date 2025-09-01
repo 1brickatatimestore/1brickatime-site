@@ -1,0 +1,173 @@
+.
+├── _attic
+│   ├── pre_restore_
+│   │   ├── frontend
+│   │   ├── pom.xml
+│   │   └── src
+│   ├── pre_restore_20250830-1919
+│   │   ├── _backup
+│   │   ├── bricklink-response.txt
+│   │   ├── eslint.config.mjs
+│   │   ├── frontend.broken.20250828-1601
+│   │   ├── java
+│   │   ├── next-env.d.ts
+│   │   ├── next.config.js
+│   │   ├── out.txt
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   │   ├── pom.xml
+│   │   ├── pom.xml.before-webflux.bak
+│   │   ├── pom.xml.pre0811.bak
+│   │   ├── postcss.config.cjs
+│   │   ├── public
+│   │   ├── raw.txt
+│   │   ├── README.md
+│   │   ├── resources
+│   │   ├── resp.json
+│   │   ├── restore2
+│   │   ├── scripts
+│   │   ├── snapshot-2025-08-12_11-08-33.txt
+│   │   ├── snapshot-2025-08-12_20-55-32.txt
+│   │   ├── snapshot.txt
+│   │   ├── snapshots
+│   │   ├── src
+│   │   ├── tailwind.config.cjs
+│   │   ├── target
+│   │   ├── test-mongo.js
+│   │   ├── test-oauth.js
+│   │   └── tsconfig.json
+│   └── pre_restore_20250830-1923
+│       ├── frontend
+│       ├── package-lock.json
+│       ├── pom.xml
+│       └── src
+├── backend
+│   ├── db.js
+│   ├── package.json
+│   ├── routes
+│   │   ├── health.ts
+│   │   ├── minifigs.ts
+│   │   └── sync.ts
+│   ├── scripts
+│   │   ├── backup.sh
+│   │   └── seeds.ts
+│   ├── server.ts
+│   ├── src
+│   │   └── main
+│   ├── syncBricklink.ts
+│   └── tsconfig.json
+├── backend-working-2025-08-31.zip
+├── bricklink-response.txt
+├── eslint.config.js
+├── frontend
+│   ├── components
+│   │   ├── CartBadge.module.css
+│   │   ├── CartBadge.tsx
+│   │   ├── Footer.tsx
+│   │   ├── GoodLink.tsx
+│   │   ├── Header.module.css
+│   │   ├── Header.tsx
+│   │   ├── Layout.tsx
+│   │   ├── MinifigCard.module.css
+│   │   ├── MinifigCard.tsx
+│   │   ├── MinifigGrid.tsx
+│   │   ├── NavBar.tsx
+│   │   ├── Sidebar.tsx
+│   │   └── SiteLayout.tsx
+│   ├── context
+│   │   └── CartContext.tsx
+│   ├── lib
+│   │   ├── api.ts
+│   │   ├── bricklink.ts
+│   │   ├── cart.ts
+│   │   ├── db.ts
+│   │   ├── dbConnect.ts
+│   │   ├── oauth.ts
+│   │   ├── paypal.ts
+│   │   ├── theme-groups.ts
+│   │   ├── theme-map.ts
+│   │   └── themeOverrides.json
+│   ├── models
+│   │   ├── Minifig.ts
+│   │   ├── Order.ts
+│   │   └── Product.ts
+│   ├── next-env.d.ts
+│   ├── next.config.js
+│   ├── package.json
+│   ├── pages
+│   │   ├── _app.tsx
+│   │   ├── _document.tsx
+│   │   ├── api
+│   │   ├── cart.tsx
+│   │   ├── checkout.tsx
+│   │   ├── index.module.css
+│   │   ├── index.tsx
+│   │   ├── minifig
+│   │   ├── minifigures.tsx
+│   │   ├── shop.tsx
+│   │   └── thank-you.tsx
+│   ├── postcss.config.js
+│   ├── public
+│   │   ├── favicon.ico
+│   │   ├── file.svg
+│   │   ├── footer-banner.png
+│   │   ├── globe.svg
+│   │   ├── logo.png
+│   │   ├── next.svg
+│   │   ├── placeholder.png
+│   │   ├── stud-rail.png
+│   │   ├── vercel.svg
+│   │   └── window.svg
+│   ├── styles
+│   │   ├── global.css
+│   │   ├── Header.module.css
+│   │   ├── Home.module.css
+│   │   ├── Layout.module.css
+│   │   └── Minifigs.module.css
+│   ├── tailwind.config.js
+│   └── tsconfig.json
+├── frontend-backup.zip
+├── next-env.d.ts
+├── out.txt
+├── package-lock.json
+├── package.json
+├── pom.xml
+├── postcss.config.js
+├── project-structure.txt
+├── raw.txt
+├── README.md
+├── resp.json
+├── snapshot-2025-08-12_11-08-33.txt
+├── snapshot-2025-08-12_20-55-32.txt
+├── snapshot.txt
+├── snapshots
+│   ├── env_2025-08-13_09-03-56.json
+│   ├── env_2025-08-13_12-24-35.json
+│   ├── sample_products_2025-08-13_09-03-56.json
+│   ├── sample_products_2025-08-13_12-24-35.json
+│   ├── themes_2025-08-13_09-03-56.json
+│   └── themes_2025-08-13_12-24-35.json
+├── target
+│   ├── brickatime-1.0.0.jar
+│   ├── brickatime-1.0.0.jar.original
+│   ├── classes
+│   │   ├── application.properties
+│   │   ├── com
+│   │   ├── static
+│   │   └── templates
+│   ├── generated-sources
+│   │   └── annotations
+│   ├── generated-test-sources
+│   │   └── test-annotations
+│   ├── maven-archiver
+│   │   └── pom.properties
+│   ├── maven-status
+│   │   └── maven-compiler-plugin
+│   └── test-classes
+├── test
+│   └── java
+│       └── com
+├── test-mongo.js
+└── test-oauth.js
+
+51 directories, 120 files

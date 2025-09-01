@@ -1,5 +1,5 @@
 // src/models/Order.ts
-import mongoose, { Schema, models, model } from "mongoose";
+import mongoose, { Schema, models, model } from 'mongoose';
 
 const OrderItemSchema = new Schema(
   {
@@ -17,12 +17,12 @@ const OrderSchema = new Schema(
   {
     method: {
       type: String,
-      enum: ["BANK", "PAYPAL", "STRIPE"],
+      enum: ['BANK', 'PAYPAL', 'STRIPE'],
       required: true,
     },
     items: { type: [OrderItemSchema], required: true },
     subtotal: { type: Number, required: true },
-    status: { type: String, default: "PENDING" }, // PENDING, PAID, CANCELED
+    status: { type: String, default: 'PENDING' }, // PENDING, PAID, CANCELED
     contact: {
       email: { type: String, default: null },
       name: { type: String, default: null },
@@ -34,4 +34,4 @@ const OrderSchema = new Schema(
 
 export type OrderDoc = mongoose.InferSchemaType<typeof OrderSchema>;
 
-export default models.Order || model("Order", OrderSchema);
+export default models.Order || model('Order', OrderSchema);

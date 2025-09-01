@@ -1,0 +1,17 @@
+.header {
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  padding: 12px 0;
+}
+.logo {
+  font-weight: 800;
+  font-size: 20px;
+  color: #000;
+  text-decoration: none;
+}
+.navLink {
+  margin-left: 16px;
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+}

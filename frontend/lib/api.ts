@@ -10,9 +10,10 @@ export type Minifig = {
   [k: string]: unknown;
 };
 
-export const API_BASE = (
-  process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080"
-).replace(/\/$/, "");
+export const API_BASE = (process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080').replace(
+  /\/$/,
+  '',
+);
 
 type PageResponse<T> = {
   content: T[];
@@ -22,16 +23,12 @@ type PageResponse<T> = {
   size: number;
 };
 
-export async function fetchMinifigsPage(
-  page = 0,
-  limit = 100,
-): Promise<PageResponse<Minifig>> {
-  const res = await fetch(
-    `${API_BASE}/api/minifigs?limit=${limit}&page=${page}`,
-    { cache: "no-store" },
-  );
+export async function fetchMinifigsPage(page = 0, limit = 100): Promise<PageResponse<Minifig>> {
+  const res = await fetch(`${API_BASE}/api/minifigs?limit=${limit}&page=${page}`, {
+    cache: 'no-store',
+  });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
+    const text = await res.text().catch(() => '');
     throw new Error(`Backend ${res.status}: ${text}`);
   }
   return (await res.json()) as PageResponse<Minifig>;

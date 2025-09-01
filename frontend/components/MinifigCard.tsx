@@ -1,30 +1,17 @@
-import Link from "next/link";
-import Image from "next/image";
-import styles from "./MinifigCard.module.css";
+// components/MinifigCard.tsx
+import React from 'react';
 
-interface MinifigCardProps {
-  id: string;
+type Minifig = {
+  no: string;
   name: string;
-  imgUrl: string;
-  price: number;
-}
-
-const MinifigCard = ({ id, name, imgUrl, price }: MinifigCardProps) => {
-  return (
-    <Link href={`/minifigs/${id}`} className={styles.card}>
-      <div>
-        <Image
-          src={imgUrl}
-          alt={name}
-          width={200}
-          height={200}
-          className={styles.image}
-        />
-        <h3 className={styles.name}>{name}</h3>
-        <p className={styles.price}>${price.toFixed(2)}</p>
-      </div>
-    </Link>
-  );
+  img_url: string;
 };
 
-export default MinifigCard;
+export default function MinifigCard({ minifig }: { minifig: Minifig }) {
+  return (
+    <div className="p-4 bg-white rounded shadow">
+      <img src={minifig.img_url} alt={minifig.name} className="mb-2" />
+      <div className="font-semibold">{minifig.name}</div>
+    </div>
+  );
+}

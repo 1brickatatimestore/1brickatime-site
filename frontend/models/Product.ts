@@ -1,8 +1,8 @@
-import mongoose, { Schema, Model, models } from "mongoose";
+import mongoose, { Schema, Model, models } from 'mongoose';
 
 export interface IProduct {
   inventoryId: number;
-  type?: "MINIFIG" | "PART" | "SET" | string | null;
+  type?: 'MINIFIG' | 'PART' | 'SET' | string | null;
   categoryId?: number | null;
   itemNo?: string | null;
   name?: string | null;
@@ -35,12 +35,12 @@ const ProductSchema = new Schema<IProduct>(
 ProductSchema.index({ type: 1, updatedAt: -1 });
 ProductSchema.index({ type: 1, itemNo: 1 });
 ProductSchema.index({
-  name: "text",
-  itemNo: "text",
-  remarks: "text",
-  description: "text",
+  name: 'text',
+  itemNo: 'text',
+  remarks: 'text',
+  description: 'text',
 });
 
 const Product: Model<IProduct> =
-  models.Product || mongoose.model<IProduct>("Product", ProductSchema);
+  models.Product || mongoose.model<IProduct>('Product', ProductSchema);
 export default Product;

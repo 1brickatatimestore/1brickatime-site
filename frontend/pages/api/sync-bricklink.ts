@@ -1,23 +1,24 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { buildOAuthHeader } from "@/lib/oauth";
+// pages/api/sync-bricklink.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { fetchMinifigsFromBricklink } from '@/lib/bricklink';
 
-/**
- * Fetch BrickLink inventory
- */
-export default async function handler(_: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const userId = 3092592;
-    const url = `https://api.bricklink.com/api/store/v1/inventories?user_id=${userId}&limit=1000`;
+    const data = await fetchMinifigsFromBricklink();
 
-    const headers = buildOAuthHeader("GET", url);
-    headers.Accept = "application/json";
+    if (!data?.data) {
+      return res.status(500).json({ error: 'Invalid BrickLink response' });
+    }
 
-    const response = await fetch(url, { method: "GET", headers });
-    const data = await response.json();
+    const minifigs = data.data.slice(0, 20).map((item: any) => ({
+      no: item.no,
+      name: item.name,
+      img_url: item.thumbnail_url,
+    }));
 
-    return res.status(200).json(data);
-  } catch (err: any) {
-    console.error("Sync error:", err);
-    return res.status(500).json({ error: "Failed to sync BrickLink inventory." });
+    res.status(200).json(minifigs);
+  } catch (error: any) {
+    console.error('Error syncing with BrickLink:', error);
+    res.status(500).json({ error: error.message || 'Unexpected error' });
   }
 }

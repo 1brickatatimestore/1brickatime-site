@@ -1,11 +1,8 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import dbConnect from "../../../lib/db";
-import Product from "../../../models/Product";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import dbConnect from '../../../lib/db';
+import Product from '../../../models/Product';
 
-export default async function handler(
-  _req: NextApiRequest,
-  res: NextApiResponse,
-) {
+export default async function handler(_req: NextApiRequest, res: NextApiResponse) {
   try {
     await dbConnect(process.env.MONGODB_URI!);
 
@@ -14,7 +11,7 @@ export default async function handler(
       $or: [
         { inventoryId: { $exists: false } },
         { inventoryId: null },
-        { itemNo: { $in: [null, ""] } },
+        { itemNo: { $in: [null, ''] } },
       ],
     });
 
@@ -23,7 +20,7 @@ export default async function handler(
       $or: [
         { inventoryId: { $exists: false } },
         { inventoryId: null },
-        { itemNo: { $in: [null, ""] } },
+        { itemNo: { $in: [null, ''] } },
       ],
     });
 
@@ -34,10 +31,10 @@ export default async function handler(
       removed: delRes.deletedCount || 0,
       incompleteBefore: beforeCount,
       totalAfter,
-      note: "Only removed docs missing inventoryId or itemNo. Your real BrickLink-synced docs remain.",
+      note: 'Only removed docs missing inventoryId or itemNo. Your real BrickLink-synced docs remain.',
     });
   } catch (e: any) {
-    console.error("purge-incomplete error:", e);
+    console.error('purge-incomplete error:', e);
     return res.status(500).json({ success: false, error: e.message || e });
   }
 }

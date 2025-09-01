@@ -1,5 +1,5 @@
 // src/lib/dbConnect.ts
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 /**
  * Reusable Mongoose connector with global caching in dev
@@ -7,7 +7,7 @@ import mongoose from "mongoose";
  */
 const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
-  throw new Error("Missing MONGODB_URI in environment");
+  throw new Error('Missing MONGODB_URI in environment');
 }
 
 type Cached = {

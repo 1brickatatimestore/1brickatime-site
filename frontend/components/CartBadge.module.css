@@ -34,6 +34,6 @@
 }
 
 /* Hide bubble when empty */
-.count[data-empty="1"] {
+.count[data-empty='1'] {
   display: none;
 }

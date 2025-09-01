@@ -1,25 +1,18 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import mongoose from "mongoose";
+import type { NextApiRequest, NextApiResponse } from 'next';
+import mongoose from 'mongoose';
 
 const Product =
   mongoose.models.Product ||
-  mongoose.model(
-    "Product",
-    new mongoose.Schema({}, { strict: false }),
-    "products",
-  );
+  mongoose.model('Product', new mongoose.Schema({}, { strict: false }), 'products');
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     if (mongoose.connection.readyState !== 1) {
       await mongoose.connect(process.env.MONGODB_URI!);
     }
 
     const docs: any[] = await Product.find(
-      { type: "MINIFIG" },
+      { type: 'MINIFIG' },
       {
         theme: 1,
         Theme: 1,
@@ -48,6 +41,6 @@ export default async function handler(
       sample: docs.slice(0, 5),
     });
   } catch (e: any) {
-    res.status(500).json({ ok: false, error: e?.message || "error" });
+    res.status(500).json({ ok: false, error: e?.message || 'error' });
   }
 }

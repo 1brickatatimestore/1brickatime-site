@@ -1,0 +1,32 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Minifigs | 1Brick at a time.</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Available Minifigs</h1>
+      <div class="grid">
+        <div th:each="fig : ${minifigs}" class="card">
+          <img th:src="${fig.imageUrl}" alt="Minifig image" />
+          <h2
+            th:text="${fig.personalName != null ? fig.personalName : fig.name}"
+          ></h2>
+          <p
+            th:text="${fig.personalDescription != null ? fig.personalDescription : fig.description}"
+          ></p>
+          <p><strong>Qty:</strong> <span th:text="${fig.qty}"></span></p>
+          <p><strong>Price:</strong> $<span th:text="${fig.price}"></span></p>
+          <p
+            th:if="${fig.remarks != null}"
+            class="remarks"
+            th:text="${fig.remarks}"
+          ></p>
+          <button>Add to Cart</button>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

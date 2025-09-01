@@ -1,45 +1,46 @@
 // components/SiteLayout.tsx
-import Link from "next/link";
-import styles from "./SiteLayout.module.css";
-import CartBadge from "./CartBadge";
-import { useCart } from "../context/CartContext";
+import Head from 'next/head'
+import Link from 'next/link'
+import Image from 'next/image'
+import styles from '../styles/Layout.module.css'
 
-export default function SiteLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { totalItems } = useCart();
-
+export default function SiteLayout({ children }) {
   return (
-    <div className={styles.site}>
-      <div className={styles.main}>
-        <header className={styles.header}>
-          <Link href="/" className={styles.logo}>
-            <img src="/logo.png" alt="1 Brick at a Time" />
-          </Link>
+    <div className={styles.container}>
+      <Head>
+        <title>1 Brick at a Time</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
 
-          <nav className={styles.nav}>
-            <Link href="/" className={styles.navlink}>
-              Home
-            </Link>
-            <Link href="/minifigs" className={styles.navlink}>
-              Minifigs
-            </Link>
-            <Link href="/themes" className={styles.navlink}>
-              Minifigs by Theme
-            </Link>
-            <Link href="/checkout" className={styles.navlink}>
-              Checkout
-            </Link>
-            <Link href="/checkout" className={styles.cart}>
-              <CartBadge count={totalItems} />
-            </Link>
-          </nav>
-        </header>
+      <header className={styles.header}>
+        <div className={styles.logoContainer}>
+          <Image src="/logo.png" alt="Logo" width={40} height={40} />
+          <span className={styles.title}>1 Brick at a Time</span>
+        </div>
+        <nav>
+          <Link href="/" legacyBehavior><a>Home</a></Link>
+          <Link href="/minifigures" legacyBehavior><a>Minifigures</a></Link>
+          <Link href="/checkout" legacyBehavior><a>Checkout</a></Link>
+        </nav>
+      </header>
 
-        <main className={styles.content}>{children}</main>
+      <div className={styles.mainWrapper}>
+        <div className={styles.studbar}>
+          <Image src="/studbar-vertical.png" alt="Studbar" layout="fill" objectFit="cover" />
+        </div>
+
+        <main className={styles.mainContent}>{children}</main>
       </div>
+
+      <footer className={styles.footer}>
+        <Image
+          src="/footer-banner.png"
+          alt="Build alongside us!"
+          className={styles.footerBanner}
+          width={700}
+          height={100}
+        />
+      </footer>
     </div>
-  );
+  )
 }

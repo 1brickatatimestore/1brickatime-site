@@ -1,111 +1,58 @@
-/* Shared grid/card styles for Minifigs pages */
-
-.wrap {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 24px;
+.hero {
+  text-align: center;
+  padding: 4rem 2rem;
 }
 
-.pageHead {
+.hero h1 {
+  font-size: 2.2rem;
+  font-weight: bold;
+  margin: 1rem 0 0.5rem;
+}
+
+.red {
+  color: #9c2b2e;
+  font-family: 'Georgia', serif;
+}
+
+.owner {
+  font-style: italic;
+  margin-bottom: 2rem;
+}
+
+.buttons {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 12px;
-}
-.pageHead h1 {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 800;
-  color: #2b2b2b;
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  align-items: center;
-  margin-bottom: 16px;
-}
-.controls select {
-  padding: 6px 8px;
-  border: 1px solid #c9c9c9;
-  border-radius: 6px;
-  background: #fff;
-}
-.stock {
-  display: flex;
-  align-items: center;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-}
-@media (max-width: 1020px) {
-  .grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (max-width: 720px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.card {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.imgBox {
-  position: relative;
-  height: 220px;
-  background: #fafafa;
-}
-
-.info {
-  padding: 10px 12px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.title {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.35;
-  font-weight: 700;
-  color: #242424;
-}
-.muted {
-  color: #666;
-  font-size: 12px;
-}
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.price {
-  font-weight: 800;
-  color: #1a3a4e;
-}
-
-.pager {
-  display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 12px;
-  margin-top: 20px;
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
-.pager button {
-  padding: 8px 12px;
-  border: 1px solid #c6c6c6;
-  border-radius: 8px;
-  background: #fff;
+
+.yellowButton {
+  background-color: #ffc107;
+  color: #222;
+  padding: 0.6rem 1.2rem;
+  font-weight: bold;
+  border-radius: 5px;
+  text-decoration: none;
+}
+
+.outlineButton {
+  border: 2px solid #1c4c6b;
+  padding: 0.6rem 1.2rem;
+  border-radius: 5px;
+  text-decoration: none;
+  color: #1c4c6b;
+  font-weight: bold;
+}
+
+.greeting h2 {
+  font-size: 2rem;
+  color: #9c2b2e;
+  font-family: 'Gochi Hand', cursive;
+  margin-bottom: 0.5rem;
+}
+
+.greeting p {
+  max-width: 600px;
+  margin: 0 auto;
+  font-family: 'Georgia', serif;
 }

@@ -1,16 +1,13 @@
 // pages/cart.tsx
-import { useContext } from "react";
-import Head from "next/head";
-import SiteLayout from "@/components/SiteLayout";
-import { CartContext } from "@/context/CartContext";
+import { useContext } from 'react';
+import Head from 'next/head';
+import SiteLayout from '@/components/SiteLayout';
+import { CartContext } from '@/context/CartContext';
 
 export default function CartPage() {
   const { cartItems, removeFromCart } = useContext(CartContext);
 
-  const total = cartItems.reduce(
-    (sum, item) => sum + item.priceAUD * item.qty,
-    0,
-  );
+  const total = cartItems.reduce((sum, item) => sum + item.priceAUD * item.qty, 0);
 
   return (
     <SiteLayout>
@@ -27,10 +24,7 @@ export default function CartPage() {
           <>
             <ul className="divide-y divide-gray-300">
               {cartItems.map((item, index) => (
-                <li
-                  key={index}
-                  className="flex items-center justify-between py-4"
-                >
+                <li key={index} className="flex items-center justify-between py-4">
                   <div>
                     <p className="font-semibold">{item.name}</p>
                     <p className="text-sm text-gray-600">{item.figNumber}</p>
@@ -50,9 +44,7 @@ export default function CartPage() {
               ))}
             </ul>
 
-            <div className="mt-6 text-right font-semibold text-lg">
-              Total: ${total.toFixed(2)}
-            </div>
+            <div className="mt-6 text-right font-semibold text-lg">Total: ${total.toFixed(2)}</div>
           </>
         )}
       </div>

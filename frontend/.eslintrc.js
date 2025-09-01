@@ -1,29 +1,32 @@
-module.exports = {
+// frontend/.eslintrc.js
+export default {
   root: true,
   parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint', 'react', 'react-hooks', 'jsx-a11y', 'import', 'unused-imports'],
+  plugins: ['@typescript-eslint', 'react', 'react-hooks', '@next/eslint-plugin-next'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
     'plugin:react/recommended',
-    'plugin:jsx-a11y/recommended',
-    'plugin:import/errors',
-    'plugin:import/warnings',
-    'plugin:import/typescript',
     'plugin:react-hooks/recommended',
-    'plugin:prettier/recommended',
-    'next/core-web-vitals'
+    'plugin:@next/next/recommended',
+    'prettier',
   ],
-  rules: {
-    'no-console': 'warn',
-    'no-unused-vars': 'off',
-    '@typescript-eslint/no-unused-vars': ['warn'],
-    'unused-imports/no-unused-imports': 'warn',
-    'react/react-in-jsx-scope': 'off'
-  },
   settings: {
     react: {
-      version: 'detect'
-    }
-  }
+      version: 'detect',
+    },
+  },
+  env: {
+    browser: true,
+    es2021: true,
+    node: true,
+  },
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+  },
+  rules: {
+    'no-console': 'warn',
+    '@typescript-eslint/no-unused-vars': ['warn'],
+  },
 };

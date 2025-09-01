@@ -7,10 +7,10 @@ export type CartItem = {
   imageUrl?: string | null;
 };
 
-const KEY = "cart";
+const KEY = 'cart';
 
 export function getCart(): CartItem[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(KEY);
     return raw ? JSON.parse(raw) : [];
@@ -20,7 +20,7 @@ export function getCart(): CartItem[] {
 }
 
 export function setCart(items: CartItem[]) {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   localStorage.setItem(KEY, JSON.stringify(items));
 }
 

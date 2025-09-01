@@ -1,5 +1,5 @@
 // src/models/Minifig.ts
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const MinifigSchema = new mongoose.Schema({
   figNumber: { type: String, required: true },
@@ -11,5 +11,4 @@ const MinifigSchema = new mongoose.Schema({
   remark: String,
 });
 
-export default mongoose.models.Minifig ||
-  mongoose.model("Minifig", MinifigSchema);
+export default mongoose.models.Minifig || mongoose.model('Minifig', MinifigSchema);

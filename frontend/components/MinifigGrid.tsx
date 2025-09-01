@@ -1,6 +1,6 @@
 // src/components/MinifigGrid.tsx
-import React from "react";
-import MinifigCard, { Minifig } from "./MinifigCard";
+import React from 'react';
+import MinifigCard, { Minifig } from './MinifigCard';
 
 export default function MinifigGrid({ items }: { items: Minifig[] }) {
   return (

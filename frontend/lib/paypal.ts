@@ -1,19 +1,16 @@
 // src/lib/paypal.ts
-import type { NextApiRequest } from "next";
+import type { NextApiRequest } from 'next';
 
 type Money = { currency_code: string; value: string };
 type ItemIn = { id: string; name: string; qty: number; price: number };
 type PostageIn = { id: string; label: string; price: number };
 
-const ENV = (process.env.PAYPAL_ENV || "sandbox").toLowerCase();
-const BASE =
-  ENV === "live"
-    ? "https://api-m.paypal.com"
-    : "https://api-m.sandbox.paypal.com";
+const ENV = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase();
+const BASE = ENV === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 
-const CLIENT = process.env.PAYPAL_CLIENT_ID || "";
-const SECRET = process.env.PAYPAL_CLIENT_SECRET || "";
-const CURRENCY = (process.env.CURRENCY || "AUD").toUpperCase();
+const CLIENT = process.env.PAYPAL_CLIENT_ID || '';
+const SECRET = process.env.PAYPAL_CLIENT_SECRET || '';
+const CURRENCY = (process.env.CURRENCY || 'AUD').toUpperCase();
 
 function to2(n: number) {
   // PayPal requires strings with 2dp
@@ -22,23 +19,20 @@ function to2(n: number) {
 
 async function getAccessToken() {
   if (!CLIENT || !SECRET) {
-    throw new Error("PayPal client/secret missing in env");
+    throw new Error('PayPal client/secret missing in env');
   }
   const res = await fetch(`${BASE}/v1/oauth2/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      Authorization:
-        "Basic " + Buffer.from(`${CLIENT}:${SECRET}`).toString("base64"),
-      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: 'Basic ' + Buffer.from(`${CLIENT}:${SECRET}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: new URLSearchParams({ grant_type: "client_credentials" }),
+    body: new URLSearchParams({ grant_type: 'client_credentials' }),
   });
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(
-      `PayPal OAuth failed (${res.status}): ${JSON.stringify(json).slice(0, 400)}`,
-    );
+    throw new Error(`PayPal OAuth failed (${res.status}): ${JSON.stringify(json).slice(0, 400)}`);
   }
   return json.access_token as string;
 }
@@ -87,18 +81,18 @@ export function buildOrderPayload(opts: {
 
   // v2 Orders payload
   const payload = {
-    intent: "CAPTURE",
+    intent: 'CAPTURE',
     purchase_units: [
       {
-        reference_id: opts.reference || "order-1",
+        reference_id: opts.reference || 'order-1',
         items: item_lines,
         amount,
       },
     ],
     application_context: {
-      brand_name: "1 Brick at a Time",
-      shipping_preference: "NO_SHIPPING", // change to "SET_PROVIDED_ADDRESS" if you later send addresses
-      user_action: "PAY_NOW",
+      brand_name: '1 Brick at a Time',
+      shipping_preference: 'NO_SHIPPING', // change to "SET_PROVIDED_ADDRESS" if you later send addresses
+      user_action: 'PAY_NOW',
       return_url: opts.returnUrl,
       cancel_url: opts.cancelUrl,
     },
@@ -118,10 +112,10 @@ export async function createOrder(args: {
   const payload = buildOrderPayload(args);
 
   const res = await fetch(`${BASE}/v2/checkout/orders`, {
-    method: "POST",
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${access}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
   });
@@ -136,14 +130,10 @@ export async function createOrder(args: {
   const id = json.id as string | undefined;
   const approveUrl =
     Array.isArray(json.links) &&
-    (json.links.find((l: any) => l.rel === "approve")?.href as
-      | string
-      | undefined);
+    (json.links.find((l: any) => l.rel === 'approve')?.href as string | undefined);
 
   if (!id || !approveUrl) {
-    throw new Error(
-      `PayPal response missing id/approveUrl: ${JSON.stringify(json).slice(0, 600)}`,
-    );
+    throw new Error(`PayPal response missing id/approveUrl: ${JSON.stringify(json).slice(0, 600)}`);
   }
 
   return { id, approveUrl };
@@ -152,22 +142,20 @@ export async function createOrder(args: {
 export async function captureOrder(orderId: string) {
   const access = await getAccessToken();
   const res = await fetch(`${BASE}/v2/checkout/orders/${orderId}/capture`, {
-    method: "POST",
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${access}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(
-      `PayPal capture failed (${res.status}): ${JSON.stringify(json).slice(0, 600)}`,
-    );
+    throw new Error(`PayPal capture failed (${res.status}): ${JSON.stringify(json).slice(0, 600)}`);
   }
   return json;
 }
 
 // Helpers for API routes (optional)
 export function siteUrlFromEnv() {
-  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 }

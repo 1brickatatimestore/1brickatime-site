@@ -1,0 +1,76 @@
+<!doctype html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>1Brick at a time. | Minifigs</title>
+    <link rel="stylesheet" th:href="@{/css/catalog.css}" />
+  </head>
+  <body>
+    <header>
+      <h1>1Brick at a time.</h1>
+      <nav>
+        <a href="/" class="nav-link">Home</a>
+        <a href="/catalog" class="nav-link active">Minifigs</a>
+        <a href="/checkout" class="nav-link">Checkout</a>
+      </nav>
+    </header>
+
+    <main>
+      <section id="catalog-container">
+        <h2>Available Minifigs</h2>
+
+        <!-- Empty state -->
+        <div th:if="${#lists.isEmpty(minifigs)}" class="empty-state">
+          <p>No minifigs available right now. Check back soon!</p>
+        </div>
+
+        <!-- Minifig cards grid -->
+        <div class="grid-container" th:if="${!#lists.isEmpty(minifigs)}">
+          <div th:each="fig : ${minifigs}" class="card">
+            <div class="img-wrapper">
+              <img
+                th:src="${fig.imageUrl != null ? fig.imageUrl : 'https://img.bricklink.com/ItemImage/MN/0/' + ${fig.itemNumber} + '.png'}"
+                alt="Minifig image"
+                class="minifig-img"
+              />
+            </div>
+
+            <div class="card-body">
+              <h3 th:text="${fig.name}">Minifig Name</h3>
+              <p class="theme" th:text="${fig.theme}">Theme</p>
+              <p class="price">Price: $<span th:text="${fig.price}">0.00</span></p>
+              <p class="qty" th:text="'Qty Available: ' + ${fig.qty}">Qty</p>
+              <p class="remarks" th:if="${fig.remarks != null}" th:text="${fig.remarks}"></p>
+              <p
+                class="personal-desc"
+                th:if="${fig.personalDescription != null}"
+                th:text="${fig.personalDescription}"
+              ></p>
+            </div>
+
+            <form th:action="@{/cart/add}" method="post" class="add-cart-form">
+              <input type="hidden" name="itemNumber" th:value="${fig.itemNumber}" />
+              <input type="hidden" name="price" th:value="${fig.price}" />
+              <input type="hidden" name="name" th:value="${fig.name}" />
+              <label for="qty-${fig.itemNumber}">Qty:</label>
+              <input
+                type="number"
+                min="1"
+                th:max="${fig.qty}"
+                value="1"
+                name="quantity"
+                th:id="'qty-' + ${fig.itemNumber}"
+              />
+              <button type="submit" class="btn-primary">Add to Cart</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>© 2025 1Brick at a time. All Rights Reserved.</p>
+    </footer>
+  </body>
+</html>

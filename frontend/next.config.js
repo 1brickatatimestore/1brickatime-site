@@ -1,6 +1,8 @@
 // frontend/next.config.js
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const path = require("path");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -8,20 +10,20 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "**.bricklink.com",
+        protocol: 'https',
+        hostname: '**.bricklink.com',
       },
       {
-        protocol: "https",
-        hostname: "**.brickset.com",
+        protocol: 'https',
+        hostname: '**.brickset.com',
       },
     ],
   },
   webpack: (config) => {
     // Fix @ alias
-    config.resolve.alias["@"] = path.resolve(__dirname);
+    config.resolve.alias['@'] = path.resolve(__dirname);
     return config;
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

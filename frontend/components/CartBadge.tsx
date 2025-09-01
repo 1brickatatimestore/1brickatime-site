@@ -3,7 +3,5 @@ interface CartBadgeProps {
 }
 
 export default function CartBadge({ count }: CartBadgeProps) {
-  return (
-    <span style={{ fontWeight: "bold", paddingLeft: "6px" }}>🛒 {count}</span>
-  );
+  return <span style={{ fontWeight: 'bold', paddingLeft: '6px' }}>🛒 {count}</span>;
 }

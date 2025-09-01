@@ -1,4 +1,7 @@
-.DS_Store
 node_modules
-dist
+.next
 build
+dist
+*.log
+.env*
+.DS_Store

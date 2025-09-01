@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "1brickatime-site",
   "private": true,
   "version": "0.0.0",
@@ -46,5 +47,31 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.5.4"
+=======
+  "name": "1brickatime-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "lint": "npm-run-all -s lint:*",
+    "format": "npm-run-all -s format:*",
+    "lint:frontend": "npm --workspace frontend run lint",
+    "lint:backend": "npm --workspace backend run lint",
+    "format:frontend": "npm --workspace frontend run format",
+    "format:backend": "npm --workspace backend run format"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  },
+  "dependencies": {
+    "axios": "^1.11.0"
+  },
+  "overrides": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+>>>>>>> ed05686 (Stable backup - September 1st, 2025)
   }
 }

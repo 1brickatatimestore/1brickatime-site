@@ -1,2 +1,2 @@
-export { default } from "./dbConnect";
-export * from "./dbConnect";
+export { default } from './dbConnect';
+export * from './dbConnect';

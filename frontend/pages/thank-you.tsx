@@ -1,8 +1,8 @@
 // pages/thank-you.tsx
-import Link from "next/link";
+import Link from 'next/link';
 
 const btn = (variant?: string) =>
-  `px-4 py-2 rounded text-white ${variant === "ghost" ? "bg-gray-500" : "bg-blue-600"}`;
+  `px-4 py-2 rounded text-white ${variant === 'ghost' ? 'bg-gray-500' : 'bg-blue-600'}`;
 
 export default function ThankYouPage() {
   return (
@@ -14,7 +14,7 @@ export default function ThankYouPage() {
           Continue shopping
         </Link>
 
-        <Link href="/checkout" className={btn("ghost")}>
+        <Link href="/checkout" className={btn('ghost')}>
           View cart/receipt
         </Link>
 
@@ -22,7 +22,7 @@ export default function ThankYouPage() {
           Return to checkout
         </Link>
 
-        <Link href="/minifigs?type=MINIFIG&limit=36" className={btn("ghost")}>
+        <Link href="/minifigs?type=MINIFIG&limit=36" className={btn('ghost')}>
           Keep browsing
         </Link>
 
@@ -30,7 +30,7 @@ export default function ThankYouPage() {
           Go to checkout
         </Link>
 
-        <Link href="/minifigs?type=MINIFIG&limit=36" className={btn("ghost")}>
+        <Link href="/minifigs?type=MINIFIG&limit=36" className={btn('ghost')}>
           Browse minifigs
         </Link>
       </div>

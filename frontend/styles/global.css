@@ -1,0 +1,164 @@
+/* Base reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  font-family: 'Georgia', serif;
+  background-color: #fef9f3;
+  color: #333;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Utility */
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Headings */
+h1, h2, h3 {
+  font-family: 'Georgia', serif;
+  font-weight: normal;
+  margin-bottom: 1rem;
+}
+
+/* Button */
+button, .button {
+  background-color: #ffc107;
+  color: #222;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  font-weight: bold;
+  font-size: 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button:hover,
+.button:hover {
+  background-color: #e0a800;
+}
+
+/* Homepage */
+.home {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.home h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+
+.home p {
+  font-style: italic;
+  margin-bottom: 2rem;
+}
+
+/* Grid for shop */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+/* Product card */
+.card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  transition: transform 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
+
+.imgBox {
+  background-color: #f2f2f2;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info {
+  padding: 1rem;
+}
+
+.title {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.muted {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+/* Navigation */
+.nav {
+  background: #fff;
+  border-bottom: 1px solid #eee;
+  padding: 0 1.5rem;
+}
+
+.navInner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 60px;
+}
+
+.logo {
+  font-weight: 800;
+  font-size: 18px;
+  color: #222;
+  text-decoration: none;
+}
+
+.links a {
+  margin-left: 20px;
+  text-decoration: none;
+  color: #333;
+}
+
+.links a.active {
+  font-weight: bold;
+  border-bottom: 2px solid #ffc107;
+}
+
+/* Footer */
+.footer {
+  margin-top: 60px;
+  padding: 20px 0;
+  text-align: center;
+  color: #777;
+  border-top: 1px solid #eee;
+}
+
+/* Page Headings */
+.pageHead {
+  text-align: center;
+  margin-top: 3rem;
+  margin-bottom: 2rem;
+}
+
+.pageHead h1 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}

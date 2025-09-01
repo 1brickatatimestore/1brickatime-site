@@ -1,0 +1,113 @@
+<<<<<<< HEAD
+<<<<<<< HEAD
+.wrap {
+=======
+/* CartBadge.module.css */
+/* self-contained; no globals or pseudo-element hacks */
+
+.cartBadge {
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
+=======
+.wrap {
+>>>>>>> 5d19dfc (Backup 2025-08-12_21-13-49)
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+<<<<<<< HEAD
+<<<<<<< HEAD
+  text-decoration: none;
+  padding: 4px;
+  margin-left: 12px;
+}
+
+.icon {
+  width: 26px;
+  height: 26px;
+  display: inline-block;
+  position: relative;
+=======
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+=======
+>>>>>>> 5d19dfc (Backup 2025-08-12_21-13-49)
+  text-decoration: none;
+  padding: 4px;
+  margin-left: 12px;
+}
+
+<<<<<<< HEAD
+.cartBadge:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 2px;
+  border-radius: 9999px;
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
+=======
+.icon {
+  width: 26px;
+  height: 26px;
+  display: inline-block;
+  position: relative;
+>>>>>>> 5d19dfc (Backup 2025-08-12_21-13-49)
+}
+
+.count {
+  position: absolute;
+  top: -6px;
+<<<<<<< HEAD
+<<<<<<< HEAD
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  background: #e1b946; /* your yellow */
+  border: 2px solid #a2801a;
+  color: #1a1a1a;
+  font-weight: 800;
+  user-select: none;
+}
+
+/* Hide bubble when empty */
+.count[data-empty="1"] {
+  display: none;
+<<<<<<< HEAD:src/components/CartBadge.module.css
+=======
+  right: -6px;
+=======
+  right: -8px;
+>>>>>>> 5d19dfc (Backup 2025-08-12_21-13-49)
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  background: #e1b946; /* your yellow */
+  border: 2px solid #a2801a;
+  color: #1a1a1a;
+  font-weight: 800;
+  user-select: none;
+}
+
+/* Hide bubble when empty */
+.count[data-empty="1"] {
+<<<<<<< HEAD
+  --scale: 0; /* visually hide when empty without changing DOM */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .count { transition: none; }
+>>>>>>> 68577e0 (Lock: header/footer layout + home styles + Minifigs grid)
+=======
+  display: none;
+>>>>>>> 5d19dfc (Backup 2025-08-12_21-13-49)
+}
+=======
+}
+>>>>>>> ed05686 (Stable backup - September 1st, 2025):_attic/pre_restore_20250830-1919/src/components/CartBadge.module.css

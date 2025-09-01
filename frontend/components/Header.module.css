@@ -1,19 +1,31 @@
+/* components/Header.module.css */
 .header {
-  @apply bg-gray-900 text-white px-6 py-4 flex items-center justify-between;
+  background-color: #174d6b;
+  color: white;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.logo {
-  @apply text-xl font-bold tracking-wide;
+.left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.nav {
-  @apply flex space-x-4;
+.logoText {
+  font-family: 'Gochi Hand', cursive;
+  font-size: 1.25rem; /* 20px */
 }
 
-.link {
-  @apply text-white hover:text-yellow-400 transition;
+.nav a {
+  margin-left: 20px;
+  font-size: 1.125rem; /* 18px – slightly larger as requested */
+  color: white;
+  text-decoration: none;
 }
 
-.active {
-  @apply font-semibold underline underline-offset-4 text-yellow-300;
+.nav a:hover {
+  text-decoration: underline;
 }

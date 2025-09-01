@@ -1,9 +1,9 @@
 // pages/minifig/[id].tsx
-import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
-import axios from "axios";
-import Head from "next/head";
-import SiteLayout from "@/components/SiteLayout";
+import { useRouter } from 'next/router';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import Head from 'next/head';
+import SiteLayout from '@/components/SiteLayout';
 
 interface Minifig {
   _id: string;
@@ -33,7 +33,7 @@ export default function MinifigDetail() {
         const res = await axios.get(`http://localhost:8080/minifigs/${id}`);
         setMinifig(res.data);
       } catch (err) {
-        console.error("Failed to fetch minifig:", err);
+        console.error('Failed to fetch minifig:', err);
       }
     };
     fetchMinifig();
@@ -42,8 +42,7 @@ export default function MinifigDetail() {
   if (!minifig) return <SiteLayout>Loading…</SiteLayout>;
 
   const imageUrl =
-    minifig.image ||
-    `https://img.bricklink.com/ItemImage/MN/0/${minifig.figNumber}.png`;
+    minifig.image || `https://img.bricklink.com/ItemImage/MN/0/${minifig.figNumber}.png`;
 
   return (
     <SiteLayout>
@@ -57,7 +56,7 @@ export default function MinifigDetail() {
           src={imageUrl}
           alt={minifig.name}
           className="w-64 h-auto mb-4 border rounded"
-          onError={(e) => (e.currentTarget.src = "/placeholder.png")}
+          onError={(e) => (e.currentTarget.src = '/placeholder.png')}
         />
         <ul className="space-y-1 text-sm">
           <li>
@@ -67,26 +66,25 @@ export default function MinifigDetail() {
             <strong>Theme:</strong> {minifig.theme}
           </li>
           <li>
-            <strong>Price (AUD):</strong> $
-            {minifig.priceAUD?.toFixed(2) ?? "N/A"}
+            <strong>Price (AUD):</strong> ${minifig.priceAUD?.toFixed(2) ?? 'N/A'}
           </li>
           <li>
             <strong>Quantity:</strong> {minifig.qty}
           </li>
           <li>
-            <strong>Condition:</strong> {minifig.condition ?? "Unknown"}
+            <strong>Condition:</strong> {minifig.condition ?? 'Unknown'}
           </li>
           <li>
-            <strong>Status:</strong> {minifig.status ?? "N/A"}
+            <strong>Status:</strong> {minifig.status ?? 'N/A'}
           </li>
           <li>
-            <strong>Lot ID:</strong> {minifig.lotId ?? "N/A"}
+            <strong>Lot ID:</strong> {minifig.lotId ?? 'N/A'}
           </li>
           <li>
-            <strong>My Description:</strong> {minifig.myDesc ?? "N/A"}
+            <strong>My Description:</strong> {minifig.myDesc ?? 'N/A'}
           </li>
           <li>
-            <strong>My Remark:</strong> {minifig.myRemark ?? "N/A"}
+            <strong>My Remark:</strong> {minifig.myRemark ?? 'N/A'}
           </li>
         </ul>
       </div>

@@ -1,7 +1,7 @@
 // src/pages/checkout.tsx
-import Head from "next/head";
-import { useEffect, useMemo, useState } from "react";
-import { getCart, setCart, clearCart, totalAUD, CartItem } from "@/lib/cart";
+import Head from 'next/head';
+import { useEffect, useMemo, useState } from 'react';
+import { getCart, setCart, clearCart, totalAUD, CartItem } from '@/lib/cart';
 
 export default function CheckoutPage() {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -15,18 +15,18 @@ export default function CheckoutPage() {
   function loadSamples() {
     const demo: CartItem[] = [
       {
-        sku: "sh0554",
-        name: "Nick Fury (Young)",
+        sku: 'sh0554',
+        name: 'Nick Fury (Young)',
         price: 4.0,
         quantity: 1,
-        imageUrl: "https://img.bricklink.com/ItemImage/MN/0/sh0554.png",
+        imageUrl: 'https://img.bricklink.com/ItemImage/MN/0/sh0554.png',
       },
       {
-        sku: "sw0187",
-        name: "Rebel Fleet Trooper",
+        sku: 'sw0187',
+        name: 'Rebel Fleet Trooper',
         price: 5.5,
         quantity: 1,
-        imageUrl: "https://img.bricklink.com/ItemImage/MN/0/sw0187.png",
+        imageUrl: 'https://img.bricklink.com/ItemImage/MN/0/sw0187.png',
       },
     ];
     setCart(demo);
@@ -35,17 +35,17 @@ export default function CheckoutPage() {
 
   async function payStripe() {
     try {
-      setBusy("stripe");
-      const r = await fetch("/api/checkout/stripe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      setBusy('stripe');
+      const r = await fetch('/api/checkout/stripe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
       });
       const data = await r.json();
       if (data?.url) {
         window.location.href = data.url;
       } else {
-        alert(data?.error || "Stripe error");
+        alert(data?.error || 'Stripe error');
       }
     } finally {
       setBusy(null);
@@ -54,17 +54,17 @@ export default function CheckoutPage() {
 
   async function payPayPal() {
     try {
-      setBusy("paypal");
-      const r = await fetch("/api/checkout/paypal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      setBusy('paypal');
+      const r = await fetch('/api/checkout/paypal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
       });
       const data = await r.json();
       if (data?.approveUrl) {
         window.location.href = data.approveUrl;
       } else {
-        alert(data?.error || "PayPal error");
+        alert(data?.error || 'PayPal error');
       }
     } finally {
       setBusy(null);
@@ -73,10 +73,10 @@ export default function CheckoutPage() {
 
   async function payBank() {
     try {
-      setBusy("bank");
-      const r = await fetch("/api/checkout/bank", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      setBusy('bank');
+      const r = await fetch('/api/checkout/bank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
       });
       const data = await r.json();
@@ -89,7 +89,7 @@ export default function CheckoutPage() {
         clearCart();
         setItems([]);
       } else {
-        alert(data?.error || "Bank checkout error");
+        alert(data?.error || 'Bank checkout error');
       }
     } finally {
       setBusy(null);
@@ -102,11 +102,11 @@ export default function CheckoutPage() {
         <title>Checkout — 1 Brick at a Time</title>
       </Head>
 
-      <main style={{ maxWidth: 900, margin: "24px auto", padding: 16 }}>
+      <main style={{ maxWidth: 900, margin: '24px auto', padding: 16 }}>
         <h1 style={{ marginTop: 0 }}>Checkout</h1>
 
         {items.length === 0 ? (
-          <div style={{ padding: 12, background: "#fff", borderRadius: 8 }}>
+          <div style={{ padding: 12, background: '#fff', borderRadius: 8 }}>
             <p>Your cart is empty.</p>
             <button onClick={loadSamples} style={btnStyle}>
               Load sample items
@@ -114,15 +114,15 @@ export default function CheckoutPage() {
           </div>
         ) : (
           <>
-            <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ display: 'grid', gap: 12 }}>
               {items.map((it) => (
                 <div
                   key={it.sku}
                   style={{
-                    display: "flex",
+                    display: 'flex',
                     gap: 12,
-                    alignItems: "center",
-                    background: "#fff",
+                    alignItems: 'center',
+                    background: '#fff',
                     padding: 12,
                     borderRadius: 8,
                   }}
@@ -134,16 +134,14 @@ export default function CheckoutPage() {
                       alt=""
                       width={64}
                       height={64}
-                      style={{ objectFit: "contain" }}
+                      style={{ objectFit: 'contain' }}
                     />
                   ) : null}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700 }}>{it.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      SKU: {it.sku}
-                    </div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>SKU: {it.sku}</div>
                   </div>
-                  <div style={{ width: 120, textAlign: "right" }}>
+                  <div style={{ width: 120, textAlign: 'right' }}>
                     x{it.quantity} &nbsp;—&nbsp; ${it.price.toFixed(2)}
                   </div>
                 </div>
@@ -152,8 +150,8 @@ export default function CheckoutPage() {
 
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
+                display: 'flex',
+                justifyContent: 'space-between',
                 marginTop: 16,
               }}
             >
@@ -166,39 +164,25 @@ export default function CheckoutPage() {
               >
                 Clear cart
               </button>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>
-                Total: AUD ${total.toFixed(2)}
-              </div>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>Total: AUD ${total.toFixed(2)}</div>
             </div>
 
             <div
               style={{
-                display: "flex",
+                display: 'flex',
                 gap: 12,
                 marginTop: 16,
-                flexWrap: "wrap",
+                flexWrap: 'wrap',
               }}
             >
-              <button
-                onClick={payStripe}
-                disabled={busy !== null}
-                style={btnPrimary}
-              >
-                {busy === "stripe" ? "Redirecting…" : "Pay with Stripe"}
+              <button onClick={payStripe} disabled={busy !== null} style={btnPrimary}>
+                {busy === 'stripe' ? 'Redirecting…' : 'Pay with Stripe'}
               </button>
-              <button
-                onClick={payPayPal}
-                disabled={busy !== null}
-                style={btnSecondary}
-              >
-                {busy === "paypal" ? "Redirecting…" : "Pay with PayPal"}
+              <button onClick={payPayPal} disabled={busy !== null} style={btnSecondary}>
+                {busy === 'paypal' ? 'Redirecting…' : 'Pay with PayPal'}
               </button>
-              <button
-                onClick={payBank}
-                disabled={busy !== null}
-                style={btnGhost}
-              >
-                {busy === "bank" ? "Preparing…" : "Pay by Bank Deposit"}
+              <button onClick={payBank} disabled={busy !== null} style={btnGhost}>
+                {busy === 'bank' ? 'Preparing…' : 'Pay by Bank Deposit'}
               </button>
             </div>
           </>
@@ -209,27 +193,27 @@ export default function CheckoutPage() {
 }
 
 const btnPrimary: React.CSSProperties = {
-  background: "#e1b946",
-  border: "2px solid #a2801a",
-  padding: "10px 16px",
+  background: '#e1b946',
+  border: '2px solid #a2801a',
+  padding: '10px 16px',
   borderRadius: 8,
   fontWeight: 700,
-  cursor: "pointer",
+  cursor: 'pointer',
 };
 const btnSecondary: React.CSSProperties = {
-  background: "#1f5376",
-  color: "#fff",
-  border: "2px solid #15374d",
-  padding: "10px 16px",
+  background: '#1f5376',
+  color: '#fff',
+  border: '2px solid #15374d',
+  padding: '10px 16px',
   borderRadius: 8,
   fontWeight: 700,
-  cursor: "pointer",
+  cursor: 'pointer',
 };
 const btnGhost: React.CSSProperties = {
-  background: "transparent",
-  border: "2px solid #204d69",
-  padding: "10px 16px",
+  background: 'transparent',
+  border: '2px solid #204d69',
+  padding: '10px 16px',
   borderRadius: 8,
   fontWeight: 700,
-  cursor: "pointer",
+  cursor: 'pointer',
 };
